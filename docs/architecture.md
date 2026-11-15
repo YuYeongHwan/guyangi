@@ -34,6 +34,17 @@ flowchart LR
 
 ## 2. 데이터 흐름
 
+### 2.0 가입
+프로필은 **동의한 뒤에만** 만들어진다. `profiles` 의 확인·동의 컬럼이 모두 `not null` 이라, 동의 없이 만들어진 프로필은 존재할 수 없다.
+
+1. 카카오·구글 로그인 → `auth.users` 행만 생긴다. 이 시점에는 프로필이 없다. (가입 트리거로 프로필을 자동 생성하지 않는다.)
+2. 프로필이 없는 로그인 사용자는 가입 화면으로만 갈 수 있다. 다른 화면은 가입 화면으로 돌려보낸다.
+3. 가입 화면에서 닉네임, 만 14세 이상 확인(필수), 이용약관 동의(필수), 개인정보 처리방침 동의(필수)를 받는다.
+4. `create_profile(nickname, terms_version, privacy_version)` 호출. 함수가 한 트랜잭션에서 `profiles`, `user_stats`, `notification_settings` 를 만든다. 확인·동의 시각은 클라이언트 값이 아니라 함수 안의 `now()` 로 찍는다. 버전이 현재 문서 버전과 다르면 거부한다.
+5. 문서가 바뀌면 현재 버전(`app_settings` 의 `terms_version`, `privacy_version`)과 프로필의 버전이 달라진다. 이런 사용자는 다시 동의 화면을 거치고, `agree_terms(terms_version, privacy_version)` 이 시각과 버전을 갱신한다.
+
+구현은 Sprint 2 (2.1, 2.6), 약관·처리방침 문서와 동의 화면의 실제 문안은 Sprint 3 (3.14).
+
 ### 2.1 도감 입력
 1. 사용자가 세트를 도감에 추가 → `collection_sets` insert.
 2. 아이템별 보유·소장 수량 입력 → `collection_entries` upsert (RLS: 본인 행만, `reserved_qty` 는 쓸 수 없음).
@@ -230,6 +241,7 @@ where coalesce(e.owned_qty, 0) = 0
 | `cycle3_min_completed` | 3 | cycle3 최소 완료 횟수 |
 | `cycle3_max_reports` | 0 | cycle3 허용 신고 횟수 |
 | `suspend_report_count` | 2 | 매칭 정지 신고 횟수 |
+| `terms_version`, `privacy_version` | 초안 버전 | 현재 이용약관·처리방침 버전. 프로필의 버전과 다르면 다시 동의받는다 |
 | `repropose_cooldown_days` | 7 | 거절·만료된 같은 leg 조합을 다시 제안하지 않는 기간 |
 | `cycle3_candidates_per_set_max` | 5000 (임시값) | 세트당 3자 순환 후보 상한. Sprint 4 실측 후 조정 |
 
@@ -249,6 +261,8 @@ where coalesce(e.owned_qty, 0) = 0
 
 | 함수 | 호출자 | 하는 일 |
 |---|---|---|
+| `create_profile(nickname, terms_version, privacy_version)` | 프로필이 없는 로그인 사용자 | 만 14세 확인과 동의 시각을 찍고 `profiles`, `user_stats`, `notification_settings` 생성 (2.0) |
+| `agree_terms(terms_version, privacy_version)` | 본인 | 바뀐 문서에 다시 동의. 시각과 버전 갱신 |
 | `propose_match(kind, legs)` | 매처 (service role) | 재검증, 예약, 매칭 생성 |
 | `accept_match(match_id, address)` | 참여자 | 수락 + 배송 정보 저장, 전원 수락 시 `confirmed` |
 | `decline_match(match_id)` | 참여자 | `cancelled`, 예약 해제 |
@@ -281,7 +295,7 @@ where coalesce(e.owned_qty, 0) = 0
 
 | 테이블 | 읽기 | 쓰기 |
 |---|---|---|
-| `profiles` | 로그인 사용자 전체 (닉네임) | 본인 행 |
+| `profiles` | 로그인 사용자 전체 (닉네임) | 본인 행의 `nickname` update 만. insert 와 동의 컬럼은 함수만 (2.0) |
 | `user_stats` | 로그인 사용자 전체 (평판 표시) | 없음 (함수만) |
 | `admins` | 없음 | 없음 |
 | `series`, `sets`, `items` | 공개된 것은 누구나 | 운영자 |
