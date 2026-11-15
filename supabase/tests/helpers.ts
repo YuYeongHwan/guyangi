@@ -20,9 +20,10 @@ export const service = createClient(url, serviceKey, options);
 export const visitor = (): SupabaseClient => createClient(url, anonKey, options);
 
 /** service 호출이 실패하면 테스트 준비가 잘못된 것이므로 바로 던진다 */
-export function must<T>(result: { data: T; error: { message: string } | null }): T {
+export function must<T>(result: { data: T; error: { message: string } | null }): NonNullable<T> {
   if (result.error) throw new Error(`테스트 준비 실패: ${result.error.message}`);
-  return result.data;
+  // 오류가 없으면 조회 결과는 null 이 아니다. select 없는 insert·update 는 반환값을 쓰지 않는다.
+  return result.data as NonNullable<T>;
 }
 
 export const randomNickname = () => `t_${randomUUID().replaceAll("-", "").slice(0, 10)}`;
