@@ -19,8 +19,10 @@ function readLocalSupabase(): Record<string, string> {
   const env = Object.fromEntries(
     [...out.matchAll(/^([A-Z0-9_]+)="?([^"\n]*)"?$/gm)].map((m) => [m[1], m[2]]),
   );
-  if (!env.API_URL || !env.ANON_KEY) {
-    throw new Error("`supabase status -o env` 에서 API_URL, ANON_KEY 를 읽지 못했어요.");
+  if (!env.API_URL || !env.ANON_KEY || !env.SERVICE_ROLE_KEY) {
+    throw new Error(
+      "`supabase status -o env` 에서 API_URL, ANON_KEY, SERVICE_ROLE_KEY 를 읽지 못했어요.",
+    );
   }
   return env;
 }
@@ -34,6 +36,8 @@ export default defineConfig({
     env: {
       SUPABASE_URL: local.API_URL,
       SUPABASE_ANON_KEY: local.ANON_KEY,
+      // 로컬 스택의 기본 키. 테스트 준비(프로필 넣기, 결과 대조)에만 쓴다. 검증은 사용자 클라이언트로 한다.
+      SUPABASE_SERVICE_ROLE_KEY: local.SERVICE_ROLE_KEY,
     },
   },
 });
