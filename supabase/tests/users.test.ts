@@ -44,6 +44,24 @@ describe("R5 user_stats: 평판은 읽을 수 있지만 쓸 수 없다", () => {
     expect(viaFunction.data).toBeNull();
   });
 
+  test("A 는 숨은 컬럼으로 거르거나 정렬해서 B 의 정지 여부를 알아낼 수 없다", async () => {
+    const [a, b] = await Promise.all([createUser(), createUser()]);
+    must(await service.from("user_stats").update({ suspended_at: new Date().toISOString() }).eq("user_id", b.id));
+
+    const filtered = await a.client.from("user_stats").select("user_id").not("suspended_at", "is", null);
+    const ordered = await a.client.from("user_stats").select("user_id").order("suspended_at");
+    const viaProfile = await a.client.from("profiles").select("id, user_stats(suspended_at)").eq("id", b.id);
+    const nullTarget = await a.client.rpc("user_status", { p_user: null });
+
+    expect(filtered.error?.code).toBe(DENIED);
+    expect(filtered.data).toBeNull();
+    expect(ordered.error?.code).toBe(DENIED);
+    expect(ordered.data).toBeNull();
+    expect(viaProfile.error?.code).toBe(DENIED);
+    expect(viaProfile.data).toBeNull();
+    expect(nullTarget.error?.code).toBe(DENIED);
+  });
+
   test("본인과 운영자는 user_status() 로 정지·우선권 시각을 읽는다", async () => {
     const [a, admin] = await Promise.all([createUser(), createAdmin()]);
     const suspendedAt = "2026-01-02T03:04:05+00:00";
@@ -256,6 +274,18 @@ describe("profiles: 닉네임만 본인이 고친다", () => {
       expect(error?.code, columns).toBe(DENIED);
       expect(data, columns).toBeNull();
     }
+  });
+
+  test("A 는 숨은 동의 시각으로 거르거나 정렬할 수 없다", async () => {
+    const a = await createUser();
+
+    const filtered = await a.client.from("profiles").select("id").lt("terms_agreed_at", "2100-01-01T00:00:00Z");
+    const ordered = await a.client.from("profiles").select("id").order("age_confirmed_at");
+
+    expect(filtered.error?.code).toBe(DENIED);
+    expect(filtered.data).toBeNull();
+    expect(ordered.error?.code).toBe(DENIED);
+    expect(ordered.data).toBeNull();
   });
 
   test("방문자는 profiles 를 읽지 못한다", async () => {
