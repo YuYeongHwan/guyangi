@@ -1,5 +1,5 @@
 -- TASKS 2.2: 카탈로그 (장르 독립). 설계는 docs/architecture.md 3.2, 4장.
--- 읽기: 공개된 세트와 그 아이템은 누구나(방문자 포함), 비공개는 운영자만. 쓰기: 운영자만.
+-- 읽기: 공개된 세트와 그 아이템, 공개된 세트가 있는 작품은 누구나(방문자 포함), 그 외는 운영자만. 쓰기: 운영자만.
 -- 삭제는 FK 가 막는다(restrict). 도감이 참조하는 세트·아이템은 지우지 않고 비공개로 돌린다.
 
 -- ── series ───────────────────────────────────────────────────────────────
@@ -15,9 +15,7 @@ revoke all on table public.series from anon, authenticated;
 grant select on table public.series to anon, authenticated;
 grant insert, update, delete on table public.series to authenticated;
 
-create policy series_select on public.series
-  for select to anon, authenticated
-  using (true);
+-- series_select 는 sets 를 참조해서 sets 정책 아래에 둔다
 create policy series_insert_admin on public.series
   for insert to authenticated
   with check ((select public.is_admin()));
@@ -34,7 +32,7 @@ create table public.sets (
   id bigint generated always as identity primary key,
   series_id bigint not null references public.series (id),
   name text not null check (length(btrim(name)) > 0),
-  kind text not null check (kind in ('collab_cafe', 'pair_bonus', 'kuji', 'can_badge', 'other')),
+  kind text not null check (kind in ('collab_cafe', 'fair_bonus', 'theater_bonus', 'kuji', 'can_badge', 'other')),
   released_on date,
   is_published boolean not null default false,
   image_path text,
@@ -52,6 +50,10 @@ grant insert, update, delete on table public.sets to authenticated;
 create policy sets_select on public.sets
   for select to anon, authenticated
   using (is_published or (select public.is_admin()));
+-- 작품은 읽을 수 있는 세트(호출자의 RLS 적용 = 공개된 세트)가 하나 이상 있을 때만 보인다
+create policy series_select on public.series
+  for select to anon, authenticated
+  using ((select public.is_admin()) or exists (select 1 from public.sets s where s.series_id = series.id));
 create policy sets_insert_admin on public.sets
   for insert to authenticated
   with check ((select public.is_admin()));
