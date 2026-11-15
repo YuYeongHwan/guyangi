@@ -171,7 +171,11 @@ describe("R18 양·구 뷰: 사용자 세션으로는 자기 행만 나온다", 
     const update = await u.client.from("tradable_haves").update({ qty: 9 }).eq("user_id", u.id);
     const remove = await u.client.from("wanted_items").delete().eq("user_id", u.id);
 
-    for (const result of [insert, update, remove]) expect(result.error?.code).toBe(DENIED);
+    // 조인 뷰라 권한 검사보다 먼저 "갱신할 수 없는 뷰"(55000)로 거부된다. 권한도 select 만 준다.
+    for (const result of [insert, update, remove]) expect([DENIED, "55000"]).toContain(result.error?.code);
+    expect(must(await service.from("collection_entries").select("item_id, owned_qty").eq("user_id", u.id))).toEqual([
+      { item_id: items[0], owned_qty: 3 },
+    ]);
     expect(await views(u)).toEqual({
       haves: [{ item_id: items[0], qty: 2 }],
       wants: [{ item_id: items[1], priority: 1 }],

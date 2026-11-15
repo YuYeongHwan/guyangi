@@ -68,7 +68,7 @@
 
 - [x] 2.1 사용자 테이블: `profiles`(약관·처리방침 동의 시각과 버전 컬럼 포함), `user_stats`, `admins`, `is_admin()`, `app_settings` 와 초기값 — 테스트 R5, R6, R16
 - [x] 2.2 카탈로그: `series`, `sets`(`cell_ratio` 포함), `items`, 굿즈 이미지 Storage 버킷(공개 읽기, 운영자만 업로드) — 테스트 R4
-- [ ] 2.3 도감 테이블과 양·구 뷰 (설계는 architecture.md 3.3): `collection_sets`(교환 참여 스위치 `trade_enabled` 기본 꺼짐, `want_mode`), `collection_entries`(`keep_qty` null = 기본 하나 소장, `reserved_qty` 와 check 제약 3개, 컬럼별 insert·update 권한), `wants`(`created_at` = 고른 시각), 뷰 `tradable_haves`·`wanted_items`(`security_invoker`). **기록만 한 사용자는 양에도 구에도 잡히지 않는다** — 테스트 R1, R2, R3, R18(양·구 뷰), R19, P10, C1(DB 제약), G1~G8
+- [x] 2.3 도감 테이블과 양·구 뷰 (설계는 architecture.md 3.3): `collection_sets`(교환 참여 스위치 `trade_enabled` 기본 꺼짐, `want_mode`), `collection_entries`(`keep_qty` null = 기본 하나 소장, `reserved_qty` 와 check 제약 3개, 컬럼별 insert·update 권한), `wants`(`created_at` = 고른 시각), 뷰 `tradable_haves`·`wanted_items`(`security_invoker`). **기록만 한 사용자는 양에도 구에도 잡히지 않는다** — 테스트 R1, R2, R3, R18(양·구 뷰), R19, P10, C1(DB 제약), G1~G8
 - [ ] 2.4 RLS 전수 검사 — 테스트 R17
 - [ ] 2.5 `supabase gen types` 결과를 `packages/shared` 에 두고 웹에서 import. 타입이 마이그레이션과 어긋나면 CI 가 실패
 - [ ] 2.6 로그인: 카카오, 구글, 만 14세 이상 확인, 닉네임, 프로필 생성. 카카오에서 이메일 없는 사용자를 허용하는 설정을 실제로 확인하고 architecture.md 5장을 갱신. **금지 닉네임 차단**: 사칭할 수 있는 이름(운영자, 관리자, admin, 구양이 등)은 프로필 생성과 닉네임 변경에서 거부한다 — 테스트 C4

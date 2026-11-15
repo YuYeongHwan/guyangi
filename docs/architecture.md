@@ -195,6 +195,7 @@ check (owned_qty - coalesce(keep_qty, least(owned_qty, 1)) - reserved_qty >= 0)
 - `collection_entries`: insert·update 는 `owned_qty`, `keep_qty`, `trade_enabled` 만 (insert 는 키 컬럼 포함). **`reserved_qty` 는 insert 로도 update 로도 쓸 수 없고 함수만 바꾼다.** delete 는 `reserved_qty = 0` 인 행만.
 - `wants`: insert·update(`priority`)·delete. `created_at` 은 사용자가 쓸 수 없다 (기본값으로만 들어간다).
 - insert 정책은 `user_id = (select auth.uid())` 에 더해 **호출자가 읽을 수 있는 세트·아이템인지**(`exists (select 1 from sets ...)`, `exists (select 1 from items ...)`) 확인한다. 정책 검사는 FK 검사보다 먼저 되므로, 비공개 세트의 id 를 넣어 보고 FK 오류(23503) 여부로 존재를 알아내는 길이 막힌다 (2.2 보안 검토 정보성 3).
+- **`upsert()` 는 쓸 수 없다.** supabase-js 의 upsert 는 충돌 시 키 컬럼(`user_id`, `item_id`)까지 다시 쓰는데 그 컬럼에는 update 권한이 없어 42501 로 거부된다. 웹은 insert 와 update 를 나눠 부른다 (2.3 구현에서 확인).
 - identity 시퀀스가 생기면 `anon`, `authenticated` 권한을 회수한다 (2.2 와 같은 규칙. 위 세 테이블은 identity 컬럼이 없다).
 
 뷰 (`security_invoker = true`). **두 뷰 모두 Sprint 2 (TASKS 2.3) 에서 만든다.** "스위치가 꺼진 세트는 양·구에 없다" 를 스키마와 테스트로 먼저 고정하기 위해서다.
