@@ -229,16 +229,17 @@ Resend 와 푸시 서버는 실제로 부르지 않는다. 실제 발송은 출�
 
 | 작업 | 언제 | 내용 |
 |---|---|---|
-| web | 모든 PR | `pnpm lint && pnpm typecheck && pnpm test` |
-| matcher | 모든 PR | `uv run pytest` (단위) |
-| db | 모든 PR | 로컬 Supabase 기동 → `supabase db reset` → `pnpm test:db` → `uv run pytest -m integration` |
-| e2e | 모든 PR | Playwright, 실패 시 추적 파일 보관 |
-| prod-build | 모든 PR | 운영 설정으로 빌드 → E6·E7 (테스트 로그인 경로 404, 산출물에 없음) |
-| perf | 매처 변경 PR, 그리고 매일 1회 | `uv run pytest -m slow` |
+| web | 모든 PR | 건너뛴 테스트 검사 → `pnpm lint && pnpm typecheck && pnpm test` |
+| matcher | 모든 PR | `uv sync --locked` → `uv run pytest` (단위) |
+| db | 모든 PR | 로컬 Supabase 기동(안 쓰는 서비스 제외) → `supabase db reset` → `pnpm test:db`. `uv run pytest -m integration` 은 Sprint 4 (TASKS 4.12) 에서 넣는다 |
+| e2e | 모든 PR | Playwright (빌드 후 실행한 앱), 실패 시 `playwright-report/` 와 `test-results/` 보관. **E8 은 이 작업에서 돈다** |
+| prod-build | 모든 PR | 운영 설정으로 빌드가 되는지 확인. E6·E7 (테스트 로그인 경로 404, 산출물에 없음) 은 그 경로가 생기는 TASKS 2.8 에서 붙인다 |
+| perf | 매처 변경 PR, 그리고 매일 1회 | `uv run pytest -m slow` (Sprint 4 에서 추가) |
 | secrets | 모든 PR | 비밀 값 스캔 (ADR-0003) |
 
+- `secrets`, `web`, `matcher`, `db`, `e2e`, `prod-build` 는 `main` 의 필수 검사다. 경로에 따라 건너뛰지 않는다. 워크플로 규칙은 ADR-0003 "CI 보안 규칙".
 - RLS, 상태머신, 매칭 엔진 테스트가 실패하면 병합할 수 없다.
-- 건너뛴 테스트(`skip`, `only`)가 있으면 실패로 본다.
+- 건너뛴 테스트가 있으면 실패로 본다. `scripts/check-no-skip.sh` 가 테스트 소스에서 `.skip`, `.only`, `.fixme`, `.todo`, `pytest.mark.skip`, `skipif`, `xfail`, `pytest.skip(` 을 찾아 파일과 줄 번호를 출력한다. 예외는 `.github/skip-allowlist.txt` 에 `파일경로:문자열  # 사유` 로 적은 것만 허용하고, 사유가 없는 줄은 실패다. 3장의 필수 보장 테스트는 허용 목록에 넣지 않는다.
 
 ## 6. 커버리지 기준
 
