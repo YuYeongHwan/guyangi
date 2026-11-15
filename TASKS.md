@@ -67,7 +67,7 @@
 목표: 로그인한 사용자가 자기 도감 행만 읽고 쓸 수 있다. 만드는 테이블은 architecture.md 3.8.
 
 - [x] 2.1 사용자 테이블: `profiles`(약관·처리방침 동의 시각과 버전 컬럼 포함), `user_stats`, `admins`, `is_admin()`, `app_settings` 와 초기값 — 테스트 R5, R6, R16
-- [ ] 2.2 카탈로그: `series`, `sets`(`cell_ratio` 포함), `items`, 굿즈 이미지 Storage 버킷(공개 읽기, 운영자만 업로드) — 테스트 R4
+- [x] 2.2 카탈로그: `series`, `sets`(`cell_ratio` 포함), `items`, 굿즈 이미지 Storage 버킷(공개 읽기, 운영자만 업로드) — 테스트 R4
 - [ ] 2.3 도감 테이블: `collection_sets`, `collection_entries`(`reserved_qty` 와 check 제약 3개, 컬럼별 update 권한), `wants` — 테스트 R1, R2, R3, P10, C1(DB 제약)
 - [ ] 2.4 RLS 전수 검사 — 테스트 R17
 - [ ] 2.5 `supabase gen types` 결과를 `packages/shared` 에 두고 웹에서 import. 타입이 마이그레이션과 어긋나면 CI 가 실패
@@ -93,7 +93,7 @@
 - [ ] 3.7 뷰 `tradable_haves` — 테스트 R18(양)
 - [ ] 3.8 구 우선순위 지정 (`wants`) — 테스트 C5
 - [ ] 3.9 세트 추가 요청과 처리 상태 보기 (`set_requests`) — 테스트 C5 (병행 가능)
-- [ ] 3.10 운영자 화면 1차 (`/admin`): 세트와 아이템 등록·공개, 사진 업로드, 세트 요청 처리 (병행 가능)
+- [ ] 3.10 운영자 화면 1차 (`/admin`): 세트와 아이템 등록·공개, 사진 업로드(파일 이름은 무작위 값, 직접 찍은 사진만 — architecture.md 4장), 세트 요청 처리. 내용이 SVG·HTML 인 파일을 `image/png` 로 위장해 올렸을 때 Storage 가 거부하는지 확인하고, 일반 사용자 업로드 버킷이 생기면 그 버킷도 함께 검토한다 (2.2 보안 검토에서 미룬 항목) (병행 가능)
 - [ ] 3.11 온보딩, 빈 상태, 오류 문구 (DESIGN.md 고양이 톤 가이드)
 - [ ] 3.12 도감 E2E — 테스트 E1. 이때 Playwright 에 **WebKit(iPhone) 프로젝트를 추가**해 E2E 를 Chromium 과 WebKit 두 엔진에서 돌린다 (도감 그리드의 탭·길게 누르기가 iOS Safari 에서 다를 수 있다). CI `e2e` 작업에도 WebKit 설치를 넣는다
 - [ ] 3.13 접근성 점검 (`ecc:accessibility`): 화면 낭독기로 도감 읽기, 초점 이동, 44px 누름 영역

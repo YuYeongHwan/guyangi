@@ -155,7 +155,7 @@ flowchart LR
 | 테이블 | 주요 컬럼 | 비고 |
 |---|---|---|
 | `series` | `id`, `name text unique`, `slug text unique` | 장르/작품. 시드: 프로세카 |
-| `sets` | `id`, `series_id FK`, `name`, `kind text check (collab_cafe, pair_bonus, kuji, can_badge, other)`, `released_on date`, `is_published boolean`, `image_path`, `cell_ratio text not null default '1:1' check (1:1, 3:4)` | 랜덤 굿즈 묶음. `cell_ratio` = 도감 칸의 가로:세로 비율 (`1:1` 원형·정사각형 굿즈, `3:4` 카드형). 값의 뜻은 DESIGN.md |
+| `sets` | `id`, `series_id FK`, `name`, `kind text check (collab_cafe, fair_bonus, theater_bonus, kuji, can_badge, other)`, `released_on date`, `is_published boolean`, `image_path`, `cell_ratio text not null default '1:1' check (1:1, 3:4)` | 랜덤 굿즈 묶음. `kind`: `fair_bonus` = 페어(fair, 기획전) 특전, `theater_bonus` = 극장 관람 특전. `cell_ratio` = 도감 칸의 가로:세로 비율 (`1:1` 원형·정사각형 굿즈, `3:4` 카드형). 값의 뜻은 DESIGN.md |
 | `items` | `id`, `set_id FK`, `name`, `sort_order int`, `image_path`, `unique (set_id, sort_order)` | 세트의 한 종류. 이미지는 운영자가 촬영한 실물 사진, 없으면 기본 실루엣 |
 | `set_requests` | `id`, `user_id FK`, `title`, `detail`, `source_url`, `status text check (pending, accepted, rejected)`, `handled_at` | 세트 추가 요청 |
 
@@ -305,7 +305,7 @@ where coalesce(e.owned_qty, 0) = 0
 | `profiles` | 로그인 사용자 전체. 컬럼은 `id`, `nickname`, `created_at`, `terms_version`, `privacy_version` 만 (동의 시각은 열지 않는다) | 본인 행의 `nickname` update 만. insert 와 동의 컬럼은 함수만 (2.0) |
 | `user_stats` | 로그인 사용자 전체, 평판 횟수 3개만. `suspended_at`·`priority_since` 는 `user_status()` 로 본인과 운영자만 | 없음 (함수만) |
 | `admins` | 없음 | 없음 |
-| `series`, `sets`, `items` | 공개된 것은 누구나 | 운영자 |
+| `series`, `sets`, `items` | `series` 는 공개된 세트가 하나 이상 있는 것만 누구나, 그 외는 운영자만. `sets` 는 공개된 것만 누구나, 비공개는 운영자만. `items` 는 속한 세트를 따른다 | 운영자 |
 | `set_requests` | 본인 것, 운영자는 전체 | 본인 insert, 운영자 update |
 | `collection_sets`, `wants` | **본인 것만** | 본인 것만 |
 | `collection_entries` | **본인 것만** | 본인 것만, `reserved_qty` 제외 |
@@ -340,7 +340,10 @@ using (
 주의할 점:
 - `match_participants` 정책이 자기 자신을 조회하면 무한 재귀가 난다. "이 매칭의 참여자인가" 는 `security definer` 함수 `is_match_participant(match_id)` 로 확인한다.
 - 상대의 도감은 볼 수 없다. 제안 화면에 보이는 "상대가 주는 아이템" 은 `match_legs` 에서 온다.
-- Storage: 굿즈 이미지는 공개 읽기, 운영자만 업로드.
+- Storage: 굿즈 이미지는 버킷 `goods` 에 둔다. 공개 읽기(공개 주소), 업로드·수정·삭제는 운영자만. 파일은 5MB 이하의 JPEG·PNG·WebP 만 받는다.
+  - **파일 이름은 추측할 수 없는 무작위 값**(예: `crypto.randomUUID()`)으로 저장한다. 세트·아이템 id 나 이름을 경로에 넣지 않는다. 공개 버킷이라 경로를 아는 사람은 누구나 읽을 수 있고, 비공개 세트의 사진도 같은 버킷에 있기 때문이다 (목록 조회는 운영자만 된다).
+  - **운영자가 올리는 사진은 직접 찍은 것만 쓴다. 공식 이미지(제작사·판매처의 상품 사진, 일러스트 원본)는 올리지 않는다.**
+- 카탈로그의 FK 는 `restrict` 다. 아이템이 있는 세트, 세트가 있는 작품, 도감이 참조하는 세트·아이템은 지워지지 않는다. 내리려면 `is_published = false` 로 돌린다. 비공개로 돌리면 사용자에게서 세트와 그 아이템이 함께 사라진다 (아이템의 읽기 정책이 세트의 정책을 따른다).
 
 ### 4.1 로그인 제공자 (환경별)
 

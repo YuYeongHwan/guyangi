@@ -75,9 +75,9 @@ jobs:
       - uses: supabase/setup-cli@689adcfb80d947100a1eab127289b97d1fb07b13 # v3.2.0
         with:
           version: ${{ env.SUPABASE_CLI_VERSION }}
-      # DB, Auth, PostgREST, 게이트웨이만 띄운다. storage-api 와 realtime 은 쓰는 항목(TASKS 2.2, 5.8)에서 다시 넣는다.
+      # DB, Auth, PostgREST, Storage, 게이트웨이만 띄운다. realtime 은 쓰는 항목(TASKS 5.8)에서 다시 넣는다.
       - name: 로컬 Supabase 기동
-        run: supabase start -x studio,logflare,vector,imgproxy,edge-runtime,mailpit,postgres-meta,supavisor,storage-api,realtime
+        run: supabase start -x studio,logflare,vector,imgproxy,edge-runtime,mailpit,postgres-meta,supavisor,realtime
       - run: supabase db reset
       - run: pnpm test:db
       # 매처 통합 테스트(uv run pytest -m integration)는 TASKS 4.12 에서 이 작업에 넣는다.
