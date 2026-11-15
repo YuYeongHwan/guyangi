@@ -67,7 +67,7 @@
 목표: 로그인한 사용자가 자기 도감 행만 읽고 쓸 수 있다. 만드는 테이블은 architecture.md 3.8.
 
 - [x] 2.1 사용자 테이블: `profiles`(약관·처리방침 동의 시각과 버전 컬럼 포함), `user_stats`, `admins`, `is_admin()`, `app_settings` 와 초기값 — 테스트 R5, R6, R16
-- [ ] 2.2 카탈로그: `series`, `sets`(`cell_ratio` 포함), `items`, 굿즈 이미지 Storage 버킷(공개 읽기, 운영자만 업로드) — 테스트 R4
+- [x] 2.2 카탈로그: `series`, `sets`(`cell_ratio` 포함), `items`, 굿즈 이미지 Storage 버킷(공개 읽기, 운영자만 업로드) — 테스트 R4
 - [ ] 2.3 도감 테이블: `collection_sets`, `collection_entries`(`reserved_qty` 와 check 제약 3개, 컬럼별 update 권한), `wants` — 테스트 R1, R2, R3, P10, C1(DB 제약)
 - [ ] 2.4 RLS 전수 검사 — 테스트 R17
 - [ ] 2.5 `supabase gen types` 결과를 `packages/shared` 에 두고 웹에서 import. 타입이 마이그레이션과 어긋나면 CI 가 실패
