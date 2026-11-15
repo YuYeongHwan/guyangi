@@ -52,8 +52,8 @@
 
 목표: 기능은 없지만 모든 검사가 도는 저장소.
 
-- [ ] 1.1 GitHub 공개 저장소 연결, 기본 브랜치 보호(PR 필수, CI 통과 필수), secret scanning 과 push protection 켜기
-- [ ] 1.2 비밀 값 방어: 값이 빈 `.env.example`, `.gitignore` 에 `supabase/.temp` 추가, 커밋 전 비밀 값 스캔(gitleaks), CI `secrets` 작업 (ADR-0003)
+- [x] 1.1 GitHub 공개 저장소 연결, 기본 브랜치 보호(PR 필수, CI 통과 필수), secret scanning 과 push protection 켜기
+- [x] 1.2 비밀 값 방어: 값이 빈 `.env.example`, `.gitignore` 에 `supabase/.temp` 추가, 커밋 전 비밀 값 스캔(gitleaks), CI `secrets` 작업 (ADR-0003)
 - [ ] 1.3 pnpm 워크스페이스 + `apps/web` (Next.js 15 App Router, TypeScript strict, Tailwind, shadcn/ui) + `packages/shared`. `pnpm dev / build / lint / typecheck / test` 가 돈다
 - [ ] 1.4 `services/matcher` (Python 3.12, uv, pytest, 커버리지). 빈 테스트 하나가 통과한다 (병행 가능)
 - [ ] 1.5 `supabase init`, 로컬 기동, `supabase db reset` 이 돈다. 이메일·비밀번호 로그인은 로컬 `config.toml` 에서만 켠다 (병행 가능)

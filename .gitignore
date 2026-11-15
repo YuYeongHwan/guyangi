@@ -3,3 +3,21 @@
 !.env.example
 node_modules/
 .DS_Store
+
+# Supabase 로컬
+supabase/.temp/
+supabase/.branches/
+
+# 빌드와 테스트 산출물
+.next/
+out/
+coverage/
+*.tsbuildinfo
+.vercel/
+playwright-report/
+test-results/
+
+# Python
+__pycache__/
+.venv/
+.pytest_cache/
