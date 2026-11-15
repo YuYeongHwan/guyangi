@@ -9,9 +9,12 @@
 ## 핵심 개념
 - 세트(set): 랜덤 굿즈 묶음 (예: 프로세카×애니플러스 코스터 26종)
 - 아이템(item): 세트의 한 종류
-- 도감(collection_entries): 사용자별 아이템 보유 수량(owned_qty), 소장 개수(keep_qty)
-- 양(讓): owned_qty - keep_qty - reserved_qty > 0 이고 trade_enabled 인 것 → tradable_haves 뷰
-- 구(求): 도감에 추가한 세트에서 owned_qty = 0 인 아이템 (+ wants로 우선순위)
+- 도감(collection_entries): 사용자별 아이템 보유 수량(owned_qty), 소장 개수(keep_qty, null = 기본 하나 소장)
+- 교환 참여는 세트 단위 스위치(collection_sets.trade_enabled, 기본 꺼짐). 꺼진 세트의 아이템은 양에도 구에도 없다
+- 양(讓): 세트 스위치가 켜져 있고, 칸이 trade_enabled 이고, owned_qty - 실제 소장 - reserved_qty > 0 → tradable_haves 뷰
+  (실제 소장 = coalesce(keep_qty, least(owned_qty, 1)))
+- 구(求): 세트 스위치가 켜진 세트에서 owned_qty = 0 인 아이템 → wanted_items 뷰.
+  want_mode 가 all_missing 이면 빈칸 전부(wants 는 우선순위만), selected 면 wants 에 고른 것만
 - 매칭(match): pair(1:1) 또는 cycle3(3자 순환). match_legs = 누가 누구에게 무엇을
 - 매칭 제안 시 reserved_qty 증가 → 거절/만료 시 해제. 완료 시 owned_qty 이동(단일 트랜잭션)
 - 교환 상태: proposed → confirmed → shipping → completed / cancelled / expired / disputed

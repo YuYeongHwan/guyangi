@@ -80,20 +80,23 @@ erDiagram
   collection_sets {
     uuid user_id PK
     bigint set_id PK
+    boolean trade_enabled "교환 참여 스위치, 기본 꺼짐"
+    text want_mode "all_missing, selected"
     timestamptz added_at
   }
   collection_entries {
     uuid user_id PK
     bigint item_id PK
     int owned_qty
-    int keep_qty
+    int keep_qty "null = 기본, 하나 소장"
     int reserved_qty
-    boolean trade_enabled
+    boolean trade_enabled "이 칸을 내놓는지"
   }
   wants {
     uuid user_id PK
     bigint item_id PK
     smallint priority
+    timestamptz created_at "고른 시각"
   }
   matches {
     bigint id PK

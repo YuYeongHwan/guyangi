@@ -69,7 +69,7 @@ stateDiagram-v2
 - `reserved_qty` 는 `proposed` 진입 시 leg 마다 +1.
 - leg 가 도감에 반영될 때(`settled_at`) `owned_qty` 와 함께 −1, 해제될 때(`released_at`) −1. 한 leg 에서 둘 중 하나만, 한 번만 일어난다.
 - `proposed` 에서 `cancelled` / `expired` 로 가면 모든 leg 가 해제된다. `completed` 로 가면 모든 leg 가 반영된다. `disputed → cancelled` 만 leg 별로 갈린다.
-- 어느 시점에도 `owned_qty − keep_qty − reserved_qty ≥ 0`.
+- 어느 시점에도 `owned_qty − 실제 소장 − reserved_qty ≥ 0` (실제 소장 = `coalesce(keep_qty, least(owned_qty, 1))`, architecture.md 3.3).
 
 ## 신고와의 관계
 

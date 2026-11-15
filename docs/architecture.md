@@ -46,9 +46,11 @@ flowchart LR
 구현은 Sprint 2 (2.1, 2.6), 약관·처리방침 문서와 동의 화면의 실제 문안은 Sprint 3 (3.14).
 
 ### 2.1 도감 입력
-1. 사용자가 세트를 도감에 추가 → `collection_sets` insert.
-2. 아이템별 보유·소장 수량 입력 → `collection_entries` upsert (RLS: 본인 행만, `reserved_qty` 는 쓸 수 없음).
-3. 양은 `tradable_haves` 뷰, 구는 `wanted_items` 뷰가 계산한다. 따로 저장하지 않는다.
+1. 사용자가 세트를 도감에 추가 → `collection_sets` insert. 교환 참여 스위치는 꺼진 채로 만들어진다.
+2. 아이템별 보유 수량 입력 → `collection_entries` upsert (RLS: 본인 행만, `reserved_qty` 는 쓸 수 없음). 여기까지는 기록일 뿐이고 양에도 구에도 잡히지 않는다.
+3. 사용자가 세트의 "교환 시작" 을 누르고 구의 범위(빈칸 전부 / 고른 것만)를 고른다 → `collection_sets.trade_enabled = true`, `want_mode`. 기본은 종류마다 하나 소장이다.
+4. 필요한 칸만 예외를 둔다: 이 칸은 내놓지 않음, 이 칸의 소장 개수 변경.
+5. 양은 `tradable_haves` 뷰, 구는 `wanted_items` 뷰가 계산한다. 따로 저장하지 않는다 (3.3).
 
 ### 2.2 매칭 제안 (10분마다)
 1. 매처가 `tradable_haves`, `wanted_items`, `matchable_users` 를 읽는다.
@@ -71,7 +73,7 @@ flowchart LR
 2. 받는 사람이 `mark_received(leg_id)`.
 3. 모든 leg 가 수령되면 같은 트랜잭션에서 `completed`:
    - 보낸 사람: `owned_qty - 1`, `reserved_qty - 1`
-   - 받은 사람: `owned_qty + 1`, `keep_qty = greatest(keep_qty, 1)` (받자마자 다시 양으로 나가지 않게)
+   - 받은 사람: `owned_qty + 1`. `keep_qty` 가 null(기본, 하나 소장)이면 그대로 두고, 숫자면 `greatest(keep_qty, 1)` 로 올린다 (받자마자 다시 양으로 나가지 않게)
    - 참여자 전원 `completed_count + 1`, 배송 정보 삭제 예정 시각 기록
 
 도감 반영은 leg 단위 동작이다 (`match_legs.settled_at` 으로 한 번만 실행되게 한다). 정상 완료에서는 모든 leg 가 한 트랜잭션에서 함께 반영된다.
@@ -160,53 +162,85 @@ flowchart LR
 | `set_requests` | `id`, `user_id FK`, `title`, `detail`, `source_url`, `status text check (pending, accepted, rejected)`, `handled_at` | 세트 추가 요청 |
 
 ### 3.3 도감
+도감에 기록하는 것과 교환에 내놓는 것은 다른 일이다. **기록만 한 사용자의 아이템은 양에도 구에도 잡히지 않는다.** 교환 참여는 세트 단위 스위치로 켠다 (기본 꺼짐).
+
 | 테이블 | 주요 컬럼 | 비고 |
 |---|---|---|
-| `collection_sets` | `PK (user_id, set_id)`, `added_at` | 도감에 추가한 세트. 구의 범위를 정한다 |
-| `collection_entries` | `PK (user_id, item_id)`, `owned_qty int`, `keep_qty int`, `reserved_qty int`, `trade_enabled boolean default true`, `updated_at` | 아래 제약 |
-| `wants` | `PK (user_id, item_id)`, `priority smallint` | 구의 우선순위만 담는다. 구 자체는 뷰가 계산 |
+| `collection_sets` | `PK (user_id, set_id)`, `trade_enabled boolean not null default false`, `want_mode text not null default 'all_missing' check (all_missing, selected)`, `added_at` | 도감에 추가한 세트. `trade_enabled` = **세트의 교환 참여 스위치**. 꺼져 있으면 그 세트의 아이템은 양에도 구에도 없다. `want_mode` = 구의 범위 (아래) |
+| `collection_entries` | `PK (user_id, item_id)`, `owned_qty int not null default 0`, `keep_qty int`(null 허용), `trade_enabled boolean not null default true`, `reserved_qty int not null default 0`, `updated_at` | 칸 하나. `keep_qty` 가 null 이면 **기본(종류마다 하나 소장)**, 숫자면 이 칸만 바꾼 소장 개수. `trade_enabled = false` 는 "이 칸은 내놓지 않음" (양에만 작용한다) |
+| `wants` | `PK (user_id, item_id)`, `priority smallint not null default 0`, `created_at timestamptz not null default now()` | `want_mode = 'all_missing'` 에서는 구의 우선순위만 담는다. `'selected'` 에서는 **행이 있는 아이템만 구**이고 `priority` 는 그 안의 우선순위다. `created_at` = 고른 시각 (`selected` 에서 대기 시간의 기준) |
+
+**실제 소장 개수** = `coalesce(keep_qty, least(owned_qty, 1))`. 하나뿐인 굿즈는 기본으로 양에 잡히지 않고, 보유가 0→2 로 늘면 저절로 하나만 소장한다. 기본값을 `keep_qty = 1` 로 저장하지 않는 이유는 보유 0 인 칸에서 `keep_qty <= owned_qty` 를 어기기 때문이다.
 
 `collection_entries` 제약:
 ```sql
-check (owned_qty >= 0 and keep_qty >= 0 and reserved_qty >= 0),
-check (keep_qty <= owned_qty),
-check (owned_qty - keep_qty - reserved_qty >= 0)
+check (owned_qty >= 0 and reserved_qty >= 0),
+check (keep_qty is null or (keep_qty >= 0 and keep_qty <= owned_qty)),
+check (owned_qty - coalesce(keep_qty, least(owned_qty, 1)) - reserved_qty >= 0)
 ```
-- 예약 중인 수량 아래로 보유 수량을 줄이는 수정은 마지막 제약이 막는다.
-- 사용자에게는 `owned_qty`, `keep_qty`, `trade_enabled` 컬럼만 `update` 권한을 준다. `reserved_qty` 는 함수만 바꾼다.
+- 예약 중인 수량 아래로 보유 수량을 줄이거나 소장 개수를 올리는 수정은 마지막 제약이 막는다.
+- 칸별 설정은 예외용이다: "이 칸은 내놓지 않음"(`trade_enabled = false`), "이 칸의 소장 개수 변경"(`keep_qty` 에 숫자). `keep_qty` 를 null 로 되돌리면 기본으로 돌아간다.
 
-뷰 (`security_invoker = true`):
+**구의 범위 (`want_mode`)**: 세트 스위치를 켤 때 화면에서 둘 중 하나를 고른다 (기본 선택은 `all_missing`).
+
+| 값 | 구 | `wants` 의 역할 |
+|---|---|---|
+| `all_missing` (빈칸 전부 구하기) | 그 세트에서 보유 0 인 아이템 전부 | 우선순위 지정만 |
+| `selected` (고른 것만 구하기) | `wants` 에 있는 아이템 중 보유 0 인 것만. 고르지 않은 빈칸은 구가 아니다 | 구할 아이템을 고르는 목록 + 우선순위 |
+
+**세트 스위치를 끌 때**: 그 세트의 아이템은 양·구에서 바로 빠져 새 매칭에 잡히지 않는다. 이미 제안된 매칭과 그 예약(`reserved_qty`)은 그대로 진행한다. `propose_match` 는 수량을 다시 확인할 때 아래 뷰와 같은 조건(세트 스위치 포함)을 쓴다.
+
+권한 (RLS 는 본인 행만, 4장):
+- `collection_sets`: insert·delete, update 는 `trade_enabled`, `want_mode` 만.
+- `collection_entries`: insert·update 는 `owned_qty`, `keep_qty`, `trade_enabled` 만 (insert 는 키 컬럼 포함). **`reserved_qty` 는 insert 로도 update 로도 쓸 수 없고 함수만 바꾼다.** delete 는 `reserved_qty = 0` 인 행만.
+- `wants`: insert·update(`priority`)·delete. `created_at` 은 사용자가 쓸 수 없다 (기본값으로만 들어간다).
+- insert 정책은 `user_id = (select auth.uid())` 에 더해 **호출자가 읽을 수 있는 세트·아이템인지**(`exists (select 1 from sets ...)`, `exists (select 1 from items ...)`) 확인한다. 정책 검사는 FK 검사보다 먼저 되므로, 비공개 세트의 id 를 넣어 보고 FK 오류(23503) 여부로 존재를 알아내는 길이 막힌다 (2.2 보안 검토 정보성 3).
+- identity 시퀀스가 생기면 `anon`, `authenticated` 권한을 회수한다 (2.2 와 같은 규칙. 위 세 테이블은 identity 컬럼이 없다).
+
+뷰 (`security_invoker = true`). **두 뷰 모두 Sprint 2 (TASKS 2.3) 에서 만든다.** "스위치가 꺼진 세트는 양·구에 없다" 를 스키마와 테스트로 먼저 고정하기 위해서다.
 ```sql
--- 양
+-- 양: 세트 스위치가 켜져 있고, 칸을 내놓았고, 실제 소장과 예약을 빼고 남는 것
 create view tradable_haves as
 select e.user_id, e.item_id,
-       e.owned_qty - e.keep_qty - e.reserved_qty as qty
+       e.owned_qty - coalesce(e.keep_qty, least(e.owned_qty, 1)) - e.reserved_qty as qty
 from collection_entries e
-join user_stats s on s.user_id = e.user_id
-where e.trade_enabled
-  and e.owned_qty - e.keep_qty - e.reserved_qty > 0
-  and s.suspended_at is null;
+join items i on i.id = e.item_id
+join sets s on s.id = i.set_id and s.is_published
+join collection_sets cs on cs.user_id = e.user_id and cs.set_id = i.set_id
+where cs.trade_enabled
+  and e.trade_enabled
+  and e.owned_qty - coalesce(e.keep_qty, least(e.owned_qty, 1)) - e.reserved_qty > 0;
 
--- 구: 추가한 세트에서 보유 0 이고, 이미 받기로 한 것이 없는 아이템
+-- 구: 세트 스위치가 켜져 있고, 보유 0 이고, (빈칸 전부 구하기 이거나 wants 에 고른 것)
 create view wanted_items as
 select cs.user_id, i.id as item_id, i.set_id,
        coalesce(w.priority, 0) as priority,
-       coalesce(e.updated_at, cs.added_at) as waiting_since  -- 대기 시간 기준
+       -- 대기 시간 기준: 고른 것만 구하기는 고른 시각, 빈칸 전부 구하기는 칸 수정 시각(없으면 세트 추가 시각)
+       case when cs.want_mode = 'selected' then w.created_at
+            else coalesce(e.updated_at, cs.added_at) end as waiting_since
 from collection_sets cs
+join sets s on s.id = cs.set_id and s.is_published
 join items i on i.set_id = cs.set_id
 left join collection_entries e on e.user_id = cs.user_id and e.item_id = i.id
 left join wants w on w.user_id = cs.user_id and w.item_id = i.id
-where coalesce(e.owned_qty, 0) = 0
+where cs.trade_enabled
+  and coalesce(e.owned_qty, 0) = 0
+  and (cs.want_mode = 'all_missing' or w.item_id is not null);
+```
+- 세트를 도감에서 빼면(`collection_sets` 행 삭제) 그 세트의 칸은 남아 있어도 양에 잡히지 않는다 (inner join).
+- `s.is_published` 를 뷰에 직접 쓴다. 사용자 세션은 RLS 로 비공개 세트가 원래 안 보이지만, 매처(service role)는 RLS 를 건너뛰므로 조건이 뷰에 있어야 두 경로의 결과가 같다. 운영자가 비공개로 돌린 세트는 양·구에서 빠진다.
+- **Sprint 4 (TASKS 4.2) 에서 더하는 것**: `wanted_items` 에 "이미 받기로 한 것 제외" 조건 (테스트 P11).
+  ```sql
   and not exists (
     select 1 from match_legs l join matches m on m.id = l.match_id
     where l.to_user = cs.user_id and l.item_id = i.id
       and (m.status in ('proposed', 'confirmed', 'shipping', 'disputed')
            -- 취소된 매칭이라도 이미 발송되어 오는 중인 것
-           or (l.shipped_at is not null and l.settled_at is null and l.released_at is null)));
-```
-`matchable_users` 뷰: 정지되지 않은 사용자의 `user_id`, `can_cycle3`(완료 3회 이상 and 확인된 신고 0회), `priority_since`.
+           or (l.shipped_at is not null and l.settled_at is null and l.released_at is null)))
+  ```
+- **정지된 사용자**: 양·구 뷰에는 정지 여부를 넣지 않는다. 사용자는 `user_stats.suspended_at` 을 읽을 권한이 없어서(3.1) `security_invoker` 뷰에 넣으면 사용자 세션에서 권한 오류가 난다. **매처가 `matchable_users` 와 join 해서 거른다** (TASKS 4.2, 4.12). 뷰가 막아 주지 않으므로 빠뜨리면 정지된 사용자에게 제안이 간다. 테스트 M22 와 P13 이 이것을 지킨다.
 
-- **주의 (TASKS 3.7 에서 정한다)**: 사용자는 `user_stats.suspended_at` 을 읽을 권한이 없다 (3.1). 위 `tradable_haves` 는 `security_invoker` 뷰라 사용자 세션으로 읽으면 이 컬럼에서 권한 오류가 난다. 뷰를 만드는 3.7 에서 정지 여부를 확인하는 방법(예: 본인 행에만 답하는 `security definer` 함수)을 정하고 이 정의를 고친다.
+`matchable_users` 뷰 (Sprint 4): 정지되지 않은 사용자의 `user_id`, `can_cycle3`(완료 3회 이상 and 확인된 신고 0회), `priority_since`.
 
 ### 3.4 매칭과 교환
 | 테이블 | 주요 컬럼 | 비고 |
@@ -255,6 +289,8 @@ where coalesce(e.owned_qty, 0) = 0
 ### 3.6 인덱스
 - 모든 FK 컬럼: `items(set_id)`, `sets(series_id)`, `match_legs(match_id)`, `match_legs(from_user)`, `match_legs(to_user)`, `match_legs(item_id)`, `reports(match_id)` 등
 - `collection_entries(item_id) where trade_enabled` — 매처가 아이템 기준으로 양을 읽는다
+- `collection_sets(set_id) where trade_enabled` — 뷰가 교환 참여 중인 세트만 읽는다
+- `wants(item_id)` — FK
 - `matches(respond_by) where status = 'proposed'` — 만료 처리
 - `matches(ship_by) where status in ('confirmed', 'shipping')` — 경고·분쟁 처리
 - `matches(closed_at) where status in ('completed', 'cancelled')` — 배송 정보 삭제
@@ -287,13 +323,14 @@ where coalesce(e.owned_qty, 0) = 0
 
 | 스프린트 | 만드는 것 |
 |---|---|
-| **Sprint 2** 스키마·인증 | `profiles`, `user_stats`, `admins`, `app_settings`, `series`, `sets`, `items`, `collection_sets`, `collection_entries`(`reserved_qty` 포함), `wants`, 프로세카 시드 |
-| **Sprint 3** 도감 | `set_requests`, 뷰 `tradable_haves` |
-| **Sprint 4** 매칭 엔진 | `matches`, `match_participants`, `match_legs`, `matcher_runs`, `notifications`, 뷰 `wanted_items`·`matchable_users`, 함수 `propose_match`, 만료 처리(`run_timers` 의 `proposed` 부분) |
+| **Sprint 2** 스키마·인증 | `profiles`, `user_stats`, `admins`, `app_settings`, `series`, `sets`, `items`, `collection_sets`(교환 참여 스위치, `want_mode`), `collection_entries`(`reserved_qty` 포함), `wants`, 뷰 `tradable_haves`·`wanted_items`, 프로세카 시드 |
+| **Sprint 3** 도감 | `set_requests` |
+| **Sprint 4** 매칭 엔진 | `matches`, `match_participants`, `match_legs`, `matcher_runs`, `notifications`, 뷰 `matchable_users`, `wanted_items` 에 "이미 받기로 한 것 제외" 추가, 함수 `propose_match`, 만료 처리(`run_timers` 의 `proposed` 부분) |
 | **Sprint 5** 교환 진행 | `shipping_addresses`, `reports`, `push_subscriptions`, `notification_settings`, 수락·발송·수령·분쟁·신고 함수, `run_timers` 나머지, Edge Function `send-notification` |
 | **Sprint 6** 출시 | 새 테이블 없음. 인덱스 점검, 삭제 작업 감시 |
 
 - `collection_entries.reserved_qty` 와 세 가지 check 제약은 Sprint 2 에 넣는다. 나중에 추가하면 도감 수정 화면의 검증을 다시 손봐야 한다.
+- 양·구 뷰도 Sprint 2 에 넣는다. "교환을 켜지 않은 세트는 양·구에 없다" 는 보장을 화면보다 먼저 스키마와 테스트로 고정한다 (3.3).
 - Sprint 4 가 끝나면 제안은 나오지만 수락은 할 수 없다. 제안과 만료만 내부에서 검증하고, 사용자에게는 Sprint 5 에서 함께 연다.
 
 ## 4. RLS 정책 개요
@@ -307,8 +344,9 @@ where coalesce(e.owned_qty, 0) = 0
 | `admins` | 없음 | 없음 |
 | `series`, `sets`, `items` | `series` 는 공개된 세트가 하나 이상 있는 것만 누구나, 그 외는 운영자만. `sets` 는 공개된 것만 누구나, 비공개는 운영자만. `items` 는 속한 세트를 따른다 | 운영자 |
 | `set_requests` | 본인 것, 운영자는 전체 | 본인 insert, 운영자 update |
-| `collection_sets`, `wants` | **본인 것만** | 본인 것만 |
-| `collection_entries` | **본인 것만** | 본인 것만, `reserved_qty` 제외 |
+| `collection_sets`, `wants` | **본인 것만** | 본인 것만. insert 는 읽을 수 있는(공개된) 세트·아이템만 |
+| `collection_entries` | **본인 것만** | 본인 것만, `reserved_qty` 제외. insert 는 읽을 수 있는 아이템만, delete 는 예약이 없는 행만 |
+| 뷰 `tradable_haves`, `wanted_items` | 본인 것만 (`security_invoker`, 바탕 테이블의 RLS 를 따른다). 매처는 service role 로 전체 | 없음 |
 | `matches`, `match_participants`, `match_legs` | 그 매칭의 참여자 | 없음 (함수만) |
 | `shipping_addresses` | 본인 것 + **내가 보낼 상대의 것** (성사 이후) | 없음 (함수만) |
 | `reports` | 신고자 본인, 운영자 | 없음 (함수만) |
