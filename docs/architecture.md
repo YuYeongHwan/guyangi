@@ -47,7 +47,7 @@ flowchart LR
 
 ### 2.1 도감 입력
 1. 사용자가 세트를 도감에 추가 → `collection_sets` insert. 교환 참여 스위치는 꺼진 채로 만들어진다.
-2. 아이템별 보유 수량 입력 → `collection_entries` upsert (RLS: 본인 행만, `reserved_qty` 는 쓸 수 없음). 여기까지는 기록일 뿐이고 양에도 구에도 잡히지 않는다.
+2. 아이템별 보유 수량 입력 → `collection_entries` insert 또는 update (RLS: 본인 행만, `reserved_qty` 는 쓸 수 없음. `upsert()` 는 쓸 수 없다, 3.3. 수량을 올리고 내리는 것은 Sprint 3 의 DB 함수로 한다). 여기까지는 기록일 뿐이고 양에도 구에도 잡히지 않는다.
 3. 사용자가 세트의 "교환 시작" 을 누르고 구의 범위(빈칸 전부 / 고른 것만)를 고른다 → `collection_sets.trade_enabled = true`, `want_mode`. 기본은 종류마다 하나 소장이다.
 4. 필요한 칸만 예외를 둔다: 이 칸은 내놓지 않음, 이 칸의 소장 개수 변경.
 5. 양은 `tradable_haves` 뷰, 구는 `wanted_items` 뷰가 계산한다. 따로 저장하지 않는다 (3.3).
@@ -166,7 +166,7 @@ flowchart LR
 
 | 테이블 | 주요 컬럼 | 비고 |
 |---|---|---|
-| `collection_sets` | `PK (user_id, set_id)`, `trade_enabled boolean not null default false`, `want_mode text not null default 'all_missing' check (all_missing, selected)`, `added_at` | 도감에 추가한 세트. `trade_enabled` = **세트의 교환 참여 스위치**. 꺼져 있으면 그 세트의 아이템은 양에도 구에도 없다. `want_mode` = 구의 범위 (아래) |
+| `collection_sets` | `PK (user_id, set_id)`, `trade_enabled boolean not null default false`, `want_mode text not null default 'all_missing' check (all_missing, selected)`, `added_at`, `trade_enabled_at timestamptz`(null 허용), `check (trade_enabled = (trade_enabled_at is not null))` | 도감에 추가한 세트. `trade_enabled` = **세트의 교환 참여 스위치**. 꺼져 있으면 그 세트의 아이템은 양에도 구에도 없다. `want_mode` = 구의 범위 (아래). `trade_enabled_at` = **스위치를 켠 시각**, 대기 시간의 하한 (아래) |
 | `collection_entries` | `PK (user_id, item_id)`, `owned_qty int not null default 0`, `keep_qty int`(null 허용), `trade_enabled boolean not null default true`, `reserved_qty int not null default 0`, `updated_at` | 칸 하나. `keep_qty` 가 null 이면 **기본(종류마다 하나 소장)**, 숫자면 이 칸만 바꾼 소장 개수. `trade_enabled = false` 는 "이 칸은 내놓지 않음" (양에만 작용한다) |
 | `wants` | `PK (user_id, item_id)`, `priority smallint not null default 0`, `created_at timestamptz not null default now()` | `want_mode = 'all_missing'` 에서는 구의 우선순위만 담는다. `'selected'` 에서는 **행이 있는 아이템만 구**이고 `priority` 는 그 안의 우선순위다. `created_at` = 고른 시각 (`selected` 에서 대기 시간의 기준) |
 
@@ -190,12 +190,21 @@ check (owned_qty - coalesce(keep_qty, least(owned_qty, 1)) - reserved_qty >= 0)
 
 **세트 스위치를 끌 때**: 그 세트의 아이템은 양·구에서 바로 빠져 새 매칭에 잡히지 않는다. 이미 제안된 매칭과 그 예약(`reserved_qty`)은 그대로 진행한다. `propose_match` 는 수량을 다시 확인할 때 아래 뷰와 같은 조건(세트 스위치 포함)을 쓴다.
 
+**스위치를 켠 시각 (`trade_enabled_at`)**: 트리거가 기록한다. 꺼짐 → 켜짐일 때(켠 채로 추가하는 것 포함) `now()`, 끄면 null, 켜 둔 채 다른 값을 고치면 그대로다. 넘어온 값은 버리므로 사용자도 service role 도 직접 쓸 수 없다. 뷰 `wanted_items` 의 `waiting_since` 는 이 시각보다 앞서지 않는다. 세트를 도감에 넣기 전에도 `wants` 와 칸을 만들 수 있고 세트를 추가만 해 두고 한참 뒤에 켤 수도 있어서, 하한이 없으면 미리 만들어 둔 행으로 매칭 순서를 당길 수 있다 (2.3 보안 검토 M1). 껐다 켜면 대기 시간은 새로 시작한다. 양(`tradable_haves`)에는 대기 시간 컬럼이 없다.
+
+**세트를 도감에서 뺄 때** (`collection_sets` 행 삭제, `before delete` 트리거 `collection_sets_remove_entries`):
+- 그 세트의 칸 중 `reserved_qty > 0` 인 것이 있으면 거부한다 (`23001`). 스위치를 끄는 것은 예약이 있어도 되지만, 행을 지우면 진행 중인 교환의 칸이 뷰와 화면에서 사라지기 때문이다 (2.3 보안 검토 L1).
+- 거부되지 않으면 그 세트의 `collection_entries` 와 `wants` 를 함께 지운다. 화면에서는 지우기 전에 확인을 받는다 (TASKS 3.4).
+- 트리거 함수는 `security definer` 다. 운영자가 비공개로 돌린 세트는 사용자가 `items` 를 읽지 못해서, 호출자 권한으로는 어느 칸이 그 세트의 것인지 알 수 없다. 지우는 범위는 지워지는 행의 `user_id`, `set_id` 로 고정이다.
+- 확인하기 전에 그 칸들을 잠근다 (`for update`). `propose_match`(Sprint 4)도 예약을 올리기 전에 같은 칸을 잠그므로 확인과 삭제 사이에 예약이 끼어들지 못한다.
+- 계정 삭제(`profiles` 삭제의 연쇄)에서도 이 트리거가 불린다. **예약이 남아 있는 사용자의 계정 삭제는 거부된다.** 탈퇴 흐름은 진행 중인 교환을 먼저 정리해야 한다 (탈퇴를 만드는 스프린트에서 다룬다).
+
 권한 (RLS 는 본인 행만, 4장):
-- `collection_sets`: insert·delete, update 는 `trade_enabled`, `want_mode` 만.
+- `collection_sets`: insert·delete, update 는 `trade_enabled`, `want_mode` 만. `added_at`, `trade_enabled_at` 은 쓸 수 없다. delete 는 위 트리거를 거친다.
 - `collection_entries`: insert·update 는 `owned_qty`, `keep_qty`, `trade_enabled` 만 (insert 는 키 컬럼 포함). **`reserved_qty` 는 insert 로도 update 로도 쓸 수 없고 함수만 바꾼다.** delete 는 `reserved_qty = 0` 인 행만.
 - `wants`: insert·update(`priority`)·delete. `created_at` 은 사용자가 쓸 수 없다 (기본값으로만 들어간다).
 - insert 정책은 `user_id = (select auth.uid())` 에 더해 **호출자가 읽을 수 있는 세트·아이템인지**(`exists (select 1 from sets ...)`, `exists (select 1 from items ...)`) 확인한다. 정책 검사는 FK 검사보다 먼저 되므로, 비공개 세트의 id 를 넣어 보고 FK 오류(23503) 여부로 존재를 알아내는 길이 막힌다 (2.2 보안 검토 정보성 3).
-- **`upsert()` 는 쓸 수 없다.** supabase-js 의 upsert 는 충돌 시 키 컬럼(`user_id`, `item_id`)까지 다시 쓰는데 그 컬럼에는 update 권한이 없어 42501 로 거부된다. 웹은 insert 와 update 를 나눠 부른다 (2.3 구현에서 확인).
+- **`upsert()` 는 쓸 수 없다.** supabase-js 의 upsert 는 충돌 시 키 컬럼(`user_id`, `item_id`)까지 다시 쓰는데 그 컬럼에는 update 권한이 없어 42501 로 거부된다. 웹은 insert 와 update 를 나눠 부른다 (2.3 구현에서 확인). 칸 수량을 올리고 내리는 것은 읽고-더하고-쓰기로 하면 빠른 연타에서 숫자가 꼬이므로, Sprint 3 (TASKS 3.6) 에서 원자적으로 더하고 빼는 DB 함수를 만든다 (테스트 C10).
 - identity 시퀀스가 생기면 `anon`, `authenticated` 권한을 회수한다 (2.2 와 같은 규칙. 위 세 테이블은 identity 컬럼이 없다).
 
 뷰 (`security_invoker = true`). **두 뷰 모두 Sprint 2 (TASKS 2.3) 에서 만든다.** "스위치가 꺼진 세트는 양·구에 없다" 를 스키마와 테스트로 먼저 고정하기 위해서다.
@@ -216,9 +225,11 @@ where cs.trade_enabled
 create view wanted_items as
 select cs.user_id, i.id as item_id, i.set_id,
        coalesce(w.priority, 0) as priority,
-       -- 대기 시간 기준: 고른 것만 구하기는 고른 시각, 빈칸 전부 구하기는 칸 수정 시각(없으면 세트 추가 시각)
-       case when cs.want_mode = 'selected' then w.created_at
-            else coalesce(e.updated_at, cs.added_at) end as waiting_since
+       -- 대기 시간 기준: 고른 것만 구하기는 고른 시각, 빈칸 전부 구하기는 칸 수정 시각(없으면 세트 추가 시각).
+       -- 어느 쪽이든 스위치를 켠 시각보다 앞서지 않는다
+       greatest(case when cs.want_mode = 'selected' then w.created_at
+                     else coalesce(e.updated_at, cs.added_at) end,
+                cs.trade_enabled_at) as waiting_since
 from collection_sets cs
 join sets s on s.id = cs.set_id and s.is_published
 join items i on i.set_id = cs.set_id
@@ -228,7 +239,7 @@ where cs.trade_enabled
   and coalesce(e.owned_qty, 0) = 0
   and (cs.want_mode = 'all_missing' or w.item_id is not null);
 ```
-- 세트를 도감에서 빼면(`collection_sets` 행 삭제) 그 세트의 칸은 남아 있어도 양에 잡히지 않는다 (inner join).
+- 세트를 도감에서 빼면(`collection_sets` 행 삭제) 그 세트의 칸과 구 목록도 함께 지워진다 (위 "세트를 도감에서 뺄 때"). 세트를 넣기 전에 만들어 둔 칸처럼 `collection_sets` 행이 없는 칸은 양에 잡히지 않는다 (inner join).
 - `s.is_published` 를 뷰에 직접 쓴다. 사용자 세션은 RLS 로 비공개 세트가 원래 안 보이지만, 매처(service role)는 RLS 를 건너뛰므로 조건이 뷰에 있어야 두 경로의 결과가 같다. 운영자가 비공개로 돌린 세트는 양·구에서 빠진다.
 - **Sprint 4 (TASKS 4.2) 에서 더하는 것**: `wanted_items` 에 "이미 받기로 한 것 제외" 조건 (테스트 P11).
   ```sql
