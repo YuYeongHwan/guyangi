@@ -110,5 +110,7 @@ PRODUCT.md         디자인 작업용 제품 요약 (impeccable 스킬이 읽�
 
 ## 명령어
 - pnpm dev / pnpm build / pnpm lint / pnpm typecheck / pnpm test
+- pnpm test:db (로컬 Supabase 필요: supabase start) / pnpm test:e2e (빌드 후 실행, 3000 포트가 비어 있어야 한다)
+- 명령은 Node 26 에서 실행한다. 셸의 기본 Node 가 다르면 `fnm exec --using=26 -- pnpm ...`
 - supabase start / supabase db reset / supabase gen types typescript --local
 - cd services/matcher && uv run pytest && uv run python -m matcher.run

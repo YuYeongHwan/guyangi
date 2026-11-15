@@ -57,7 +57,7 @@
 - [x] 1.3 pnpm 워크스페이스 + `apps/web` (Next.js 16 App Router, TypeScript strict, Tailwind, shadcn/ui, ADR-0006) + `packages/shared`. `pnpm dev / build / lint / typecheck / test` 가 돈다
 - [x] 1.4 `services/matcher` (Python 3.12, uv, pytest, 커버리지). 빈 테스트 하나가 통과한다 (병행 가능)
 - [x] 1.5 `supabase init`, 로컬 기동, `supabase db reset` 이 돈다. 이메일·비밀번호 로그인은 로컬 `config.toml` 에서만 켠다 (병행 가능)
-- [ ] 1.6 테스트 러너: Vitest(웹 단위), Vitest + supabase-js(`supabase/tests`, `pnpm test:db`), Playwright(모바일 뷰포트, `pnpm test:e2e`)
+- [x] 1.6 테스트 러너: Vitest(웹 단위), Vitest + supabase-js(`supabase/tests`, `pnpm test:db`), Playwright(모바일 뷰포트, `pnpm test:e2e`)
 - [ ] 1.7 CI 작업: `web`, `matcher`, `db`, `e2e`, `prod-build`, `secrets` (testing.md 5장). `skip` / `only` 가 있으면 실패
 
 **끝났다는 기준**: 빈 PR 하나가 모든 CI 작업을 통과한다. 저장소에 비밀 값이 없다.
@@ -95,7 +95,7 @@
 - [ ] 3.9 세트 추가 요청과 처리 상태 보기 (`set_requests`) — 테스트 C5 (병행 가능)
 - [ ] 3.10 운영자 화면 1차 (`/admin`): 세트와 아이템 등록·공개, 사진 업로드, 세트 요청 처리 (병행 가능)
 - [ ] 3.11 온보딩, 빈 상태, 오류 문구 (DESIGN.md 고양이 톤 가이드)
-- [ ] 3.12 도감 E2E — 테스트 E1
+- [ ] 3.12 도감 E2E — 테스트 E1. 이때 Playwright 에 **WebKit(iPhone) 프로젝트를 추가**해 E2E 를 Chromium 과 WebKit 두 엔진에서 돌린다 (도감 그리드의 탭·길게 누르기가 iOS Safari 에서 다를 수 있다). CI `e2e` 작업에도 WebKit 설치를 넣는다
 - [ ] 3.13 접근성 점검 (`ecc:accessibility`): 화면 낭독기로 도감 읽기, 초점 이동, 44px 누름 영역
 - [ ] 3.14 가입 동의와 약관: 가입 화면에서 **만 14세 이상 확인(체크 필수)** 과 이용약관·개인정보 처리방침 동의를 받는다. 약관·처리방침 화면과 초안 작성. 처리방침 초안에는 수집 항목, 배송 정보 30일 후 삭제, 알림용 이메일, 제3자 제공(교환 상대에게 배송 정보 제공)을 명시한다. 동의한 시각과 문서 버전을 `profiles` 의 `terms_agreed_at`, `terms_version`, `privacy_agreed_at`, `privacy_version` 에 저장한다 (컬럼은 2.1 에서 만든다). 초안이 확정되면 버전을 올리고, 버전이 다른 사용자에게 다시 동의받는다. 프로필 생성 조건(C4)은 2.6 에서 이미 만든 것을 화면에 연결한다
 - [ ] 3.15 로그인 화면의 한 화면 소개(무엇을 하는 서비스인지, 지금은 도감만 열려 있고 교환은 곧 열린다는 안내), 링크 미리보기용 OG 이미지와 메타 정보 (병행 가능)

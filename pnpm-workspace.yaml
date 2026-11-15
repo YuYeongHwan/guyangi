@@ -1,6 +1,7 @@
 packages:
   - apps/*
   - packages/*
+  - supabase # DB 통합 테스트 (supabase/tests)
 
 # 설치 중 빌드 스크립트 실행 여부 (create-next-app 기본값 그대로)
 allowBuilds:
