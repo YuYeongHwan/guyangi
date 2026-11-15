@@ -1,0 +1,16 @@
+{
+  "name": "@guyangi/db-tests",
+  "version": "0.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "test:db": "vitest run",
+    "typecheck": "tsc --noEmit"
+  },
+  "devDependencies": {
+    "@supabase/supabase-js": "^2.119.0",
+    "@types/node": "^26.6.6",
+    "typescript": "^5",
+    "vitest": "^5.1.0"
+  }
+}

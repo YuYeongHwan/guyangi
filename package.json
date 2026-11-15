@@ -11,6 +11,8 @@
     "build": "pnpm --filter web build",
     "lint": "pnpm -r --if-present lint",
     "typecheck": "pnpm -r --if-present typecheck",
-    "test": "pnpm -r --if-present test"
+    "test": "pnpm -r --if-present test",
+    "test:db": "pnpm --filter @guyangi/db-tests test:db",
+    "test:e2e": "pnpm --filter web test:e2e"
   }
 }
