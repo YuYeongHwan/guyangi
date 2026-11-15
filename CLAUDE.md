@@ -52,6 +52,8 @@ guyangi/
 - docs/testing.md 3장의 필수 보장 테스트는 지우거나 건너뛰지 않는다. 테스트를 먼저 쓴다
 - E2E 테스트 로그인 경로는 운영 빌드에서 제외한다 (*.e2e.ts + pageExtensions). 환경 변수 확인만으로 막지 않는다
 - 커밋 전: `pnpm lint && pnpm typecheck && pnpm test`, matcher는 `uv run pytest`
+- 커밋 직전에 `git status`와 `git diff --staged`로 커밋 메시지에 적은 변경이 실제로
+  스테이징됐는지 확인한다. 훅이 수정을 막았으면 수정이 적용된 뒤에 커밋한다
 - UI 문구는 친근한 고양이 톤 ("구양이가 물어왔어요 🐾"), 기준은 docs/DESIGN.md
 - 기능 하나 = 브랜치 하나 = PR 하나. 큰 작업은 먼저 Plan 모드로 계획
 - 결정이 바뀌면 이 파일과 관련 docs를 즉시 갱신

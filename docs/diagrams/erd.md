@@ -33,6 +33,10 @@ erDiagram
     uuid id PK
     text nickname UK
     timestamptz age_confirmed_at
+    timestamptz terms_agreed_at
+    text terms_version
+    timestamptz privacy_agreed_at
+    text privacy_version
   }
   user_stats {
     uuid user_id PK

@@ -130,7 +130,7 @@ flowchart LR
 ### 3.1 사용자
 | 테이블 | 주요 컬럼 | 비고 |
 |---|---|---|
-| `profiles` | `id uuid PK → auth.users`, `nickname text unique`, `age_confirmed_at timestamptz not null`, `created_at` | 사용자가 고칠 수 있는 정보만. 만 14세 이상 확인 시각 |
+| `profiles` | `id uuid PK → auth.users`, `nickname text unique`, `age_confirmed_at timestamptz not null`, `terms_agreed_at timestamptz not null`, `terms_version text not null`, `privacy_agreed_at timestamptz not null`, `privacy_version text not null`, `created_at` | 만 14세 이상 확인 시각, 이용약관·개인정보 처리방침에 동의한 시각과 그때의 문서 버전. 사용자가 직접 고칠 수 있는 것은 `nickname` 뿐이다 (컬럼 권한). 문서가 바뀌어 다시 동의받으면 시각과 버전을 갱신한다 |
 | `user_stats` | `user_id uuid PK → profiles`, `completed_count int`, `confirmed_report_count int`, `no_response_count int`, `priority_since timestamptz`, `suspended_at timestamptz` | 최소 평판. **함수만 쓴다.** `priority_since` = 재매칭 우선권, 다음 제안을 받으면 비운다 |
 | `admins` | `user_id uuid PK → profiles` | 클라이언트 접근 없음. `is_admin()` 함수로만 확인 |
 
