@@ -11,7 +11,7 @@ web
 
 ## Stack
 
-Next.js 15 App Router, TypeScript, Tailwind, shadcn/ui. 모바일 우선 PWA. 네이티브 앱은 MVP 에서 만들지 않는다.
+Next.js 16 App Router, TypeScript, Tailwind, shadcn/ui. 모바일 우선 PWA. 네이티브 앱은 MVP 에서 만들지 않는다.
 
 ## Users
 

@@ -20,7 +20,8 @@
 - 기한·기준 값(응답 24h, 발송 48h/72h, 보관 30일 등)은 app_settings 테이블에서 읽는다
 
 ## 스택
-- apps/web: Next.js 15 App Router, TypeScript strict, Tailwind, shadcn/ui, 모바일 우선 PWA
+- apps/web: Next.js 16 App Router (Turbopack), TypeScript strict, Tailwind 4, shadcn/ui, 모바일 우선 PWA (ADR-0006)
+- Node 26.x (`.nvmrc`, fnm), pnpm 워크스페이스
 - DB/Auth: Supabase (Postgres, RLS 필수, Auth: kakao/google, Realtime, Storage)
 - services/matcher: Python 3.12, uv, networkx, supabase-py, pytest
 - 알림: 인앱(Realtime) + 웹 푸시(VAPID) + 이메일(Resend). 발송은 Supabase Edge Function
@@ -44,6 +45,9 @@ guyangi/
 - 저장소는 공개다. 비밀 값은 커밋하지 않는다: 값이 빈 .env.example 만 두고, .env* 는 .gitignore,
   커밋 전 비밀 값 스캔. 시드·픽스처에 실제 개인정보 금지 (ADR-0003)
 - cycle3 참여 조건: 교환 완료 3회 이상이고 미발송 신고 0회. 그 외에는 pair만
+- Next.js 관련 구현 전에 `apps/web/node_modules/next/dist/docs` 의 해당 문서를 먼저 읽는다.
+  기억과 문서가 다르면 문서를 따른다
+- ecc:nextjs-turbopack 등 스킬의 안내가 16 문서와 다르면 16 문서를 따르고, 차이를 알려 준다
 - 서버 액션/라우트 핸들러에서 zod로 입력 검증
 - DB 변경은 반드시 supabase/migrations 에 마이그레이션 파일로
 - 타입은 `supabase gen types` 결과를 packages/shared 에서 import
