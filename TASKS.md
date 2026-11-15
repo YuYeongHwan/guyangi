@@ -68,7 +68,7 @@
 
 - [x] 2.1 사용자 테이블: `profiles`(약관·처리방침 동의 시각과 버전 컬럼 포함), `user_stats`, `admins`, `is_admin()`, `app_settings` 와 초기값 — 테스트 R5, R6, R16
 - [x] 2.2 카탈로그: `series`, `sets`(`cell_ratio` 포함), `items`, 굿즈 이미지 Storage 버킷(공개 읽기, 운영자만 업로드) — 테스트 R4
-- [ ] 2.3 도감 테이블: `collection_sets`, `collection_entries`(`reserved_qty` 와 check 제약 3개, 컬럼별 update 권한), `wants` — 테스트 R1, R2, R3, P10, C1(DB 제약)
+- [ ] 2.3 도감 테이블과 양·구 뷰 (설계는 architecture.md 3.3): `collection_sets`(교환 참여 스위치 `trade_enabled` 기본 꺼짐, `want_mode`), `collection_entries`(`keep_qty` null = 기본 하나 소장, `reserved_qty` 와 check 제약 3개, 컬럼별 insert·update 권한), `wants`, 뷰 `tradable_haves`·`wanted_items`(`security_invoker`). **기록만 한 사용자는 양에도 구에도 잡히지 않는다** — 테스트 R1, R2, R3, R18(양·구 뷰), R19, P10, C1(DB 제약), G1~G8
 - [ ] 2.4 RLS 전수 검사 — 테스트 R17
 - [ ] 2.5 `supabase gen types` 결과를 `packages/shared` 에 두고 웹에서 import. 타입이 마이그레이션과 어긋나면 CI 가 실패
 - [ ] 2.6 로그인: 카카오, 구글, 만 14세 이상 확인, 닉네임, 프로필 생성. 카카오에서 이메일 없는 사용자를 허용하는 설정을 실제로 확인하고 architecture.md 5장을 갱신. **금지 닉네임 차단**: 사칭할 수 있는 이름(운영자, 관리자, admin, 구양이 등)은 프로필 생성과 닉네임 변경에서 거부한다 — 테스트 C4
@@ -87,11 +87,11 @@
 - [ ] 3.1 디자인 토큰과 기본 컴포넌트: 역할 기준 색 토큰, 글꼴, 버튼, 입력란, 카드, 시트, 아래 탭 바 (DESIGN.md). `anthropic-skills:impeccable` 로 진행
 - [ ] 3.2 **DESIGN.md "Sprint 3 확인 항목" 처리**: 모바일 그리드 3열과 4열 비교, 색각 이상 시뮬레이션, LINE Seed Sans KR 라이선스와 용량, 대비 재계산
 - [ ] 3.3 앱 뼈대: 탭(도감 / 매칭 / 알림 / 내 정보, 매칭과 알림은 "준비 중" 빈 상태), PWA manifest, 홈 화면 추가
-- [ ] 3.4 세트 카탈로그 보기와 도감에 추가
+- [ ] 3.4 세트 카탈로그 보기와 도감에 추가. 세트의 "교환 시작" 스위치(기본 꺼짐)와, 켤 때 구의 범위 고르기(빈칸 전부 구하기 / 고른 것만 구하기, 기본 선택은 빈칸 전부) — 테스트 C5
 - [ ] 3.5 도감 그리드: 포켓 칸(미보유 실루엣 / 보유 컬러, 세트별 칸 비율), 칸 아래 이름표, 구/양 배지, 세트 진행 숫자, 컴플리트 소인 — 테스트 C2, C3
-- [ ] 3.6 칸 수정 시트: 보유 수량, 소장 개수, 교환 여부. zod 검증 + 서버 액션 — 테스트 C1(zod), C5
-- [ ] 3.7 뷰 `tradable_haves` — 테스트 R18(양)
-- [ ] 3.8 구 우선순위 지정 (`wants`) — 테스트 C5
+- [ ] 3.6 칸 수정 시트: 보유 수량, 소장 개수(비워 두면 기본 = 하나 소장), 이 칸은 내놓지 않음. zod 검증 + 서버 액션 — 테스트 C1(zod), C5
+- [ ] 3.7 도감의 구/양 표시를 뷰 `tradable_haves`, `wanted_items` 에서 읽는다 (뷰는 2.3 에서 만들었다) — 테스트 C2
+- [ ] 3.8 구 고르기와 우선순위 (`wants`): "고른 것만 구하기" 세트에서 구할 칸 고르기, 두 방식 모두에서 우선순위 지정 — 테스트 C5
 - [ ] 3.9 세트 추가 요청과 처리 상태 보기 (`set_requests`) — 테스트 C5 (병행 가능)
 - [ ] 3.10 운영자 화면 1차 (`/admin`): 세트와 아이템 등록·공개, 사진 업로드(파일 이름은 무작위 값, 직접 찍은 사진만 — architecture.md 4장), 세트 요청 처리. 내용이 SVG·HTML 인 파일을 `image/png` 로 위장해 올렸을 때 Storage 가 거부하는지 확인하고, 일반 사용자 업로드 버킷이 생기면 그 버킷도 함께 검토한다 (2.2 보안 검토에서 미룬 항목) (병행 가능)
 - [ ] 3.11 온보딩, 빈 상태, 오류 문구 (DESIGN.md 고양이 톤 가이드)
@@ -127,8 +127,8 @@ Sprint 3 이 끝나면 PRD 전달 단계 1("도감 단독 공개")을 열 수 �
 
 DB:
 - [ ] 4.1 `matches`, `match_participants`, `match_legs`, `matcher_runs`, `notifications`, `is_match_participant()`, RLS — 테스트 R7, R14(알림), S15
-- [ ] 4.2 뷰 `wanted_items`, `matchable_users` — 테스트 R18(나머지), P11
-- [ ] 4.3 `propose_match` — 테스트 P1~P9, N1(수락 요청)
+- [ ] 4.2 뷰 `matchable_users`(정지된 사용자 제외. 양·구 뷰에는 정지 여부를 넣지 않고 매처가 이 뷰와 join 한다), `wanted_items` 에 "이미 받기로 한 것 제외" 추가 — 테스트 R18(`matchable_users`), P11
+- [ ] 4.3 `propose_match` (수량 재확인에 세트 교환 스위치 포함) — 테스트 P1~P9, P12, N1(수락 요청)
 - [ ] 4.4 `run_timers` 의 만료 처리 + pg_cron 5분 — 테스트 T1, T2(무응답), T3, T9, T10
 
 매처 (순수 함수, `ecc:tdd-workflow` + `ecc:python-testing`):
