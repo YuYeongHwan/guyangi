@@ -1,0 +1,16 @@
+#!/bin/sh
+# 커밋 전 비밀 값 스캔 (docs/adr/0003-cron-vs-queue.md "공개 저장소의 비밀 값 규칙").
+# 연결: git config core.hooksPath .githooks  (pnpm install 이 자동으로 한다)
+# --no-verify 로 건너뛸 수 있으므로 같은 검사를 CI(.github/workflows/secrets.yml)에서도 돌린다.
+
+if ! command -v gitleaks >/dev/null 2>&1; then
+  echo "gitleaks 가 없어서 커밋을 막았어요. 설치: brew install gitleaks" >&2
+  exit 1
+fi
+
+if ! gitleaks git --pre-commit --staged --redact --no-banner; then
+  echo "" >&2
+  echo "비밀 값으로 보이는 내용이 있어서 커밋을 막았어요." >&2
+  echo "진짜 키라면 파일에서 지우고, 이미 어딘가에 올렸다면 그 키를 재발급하세요." >&2
+  exit 1
+fi
