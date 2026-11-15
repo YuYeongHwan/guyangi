@@ -141,7 +141,7 @@ flowchart LR
 | 테이블 | 주요 컬럼 | 비고 |
 |---|---|---|
 | `series` | `id`, `name text unique`, `slug text unique` | 장르/작품. 시드: 프로세카 |
-| `sets` | `id`, `series_id FK`, `name`, `kind text check (collab_cafe, pair_bonus, kuji, can_badge, other)`, `released_on date`, `is_published boolean`, `image_path` | 랜덤 굿즈 묶음 |
+| `sets` | `id`, `series_id FK`, `name`, `kind text check (collab_cafe, pair_bonus, kuji, can_badge, other)`, `released_on date`, `is_published boolean`, `image_path`, `cell_ratio text not null default '1:1' check (1:1, 3:4)` | 랜덤 굿즈 묶음. `cell_ratio` = 도감 칸의 가로:세로 비율 (`1:1` 원형·정사각형 굿즈, `3:4` 카드형). 값의 뜻은 DESIGN.md |
 | `items` | `id`, `set_id FK`, `name`, `sort_order int`, `image_path`, `unique (set_id, sort_order)` | 세트의 한 종류. 이미지는 운영자가 촬영한 실물 사진, 없으면 기본 실루엣 |
 | `set_requests` | `id`, `user_id FK`, `title`, `detail`, `source_url`, `status text check (pending, accepted, rejected)`, `handled_at` | 세트 추가 요청 |
 

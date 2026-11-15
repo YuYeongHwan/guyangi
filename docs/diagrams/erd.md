@@ -58,6 +58,7 @@ erDiagram
     date released_on
     boolean is_published
     text image_path
+    text cell_ratio
   }
   items {
     bigint id PK
