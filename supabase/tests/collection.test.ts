@@ -558,10 +558,12 @@ describe("G6 스위치를 다시 끄면", () => {
       haves: [{ item_id: second.items[0], qty: 2 }],
       wants: [{ item_id: second.items[1], priority: 0 }],
     };
+    // 두 세트를 동시에 만들어서 어느 쪽 id 가 작은지는 정해져 있지 않다. 뷰 조회와 같은 순서(item_id)로 맞춘다
+    const byItem = <T extends { item_id: number }>(rows: T[]) => rows.sort((a, b) => a.item_id - b.item_id);
     // 대조군: 끄기 전에는 두 세트 모두 나온다 (예약 1 은 양에서 빠져 있다)
     expect(await views(u)).toEqual({
-      haves: [{ item_id: first.items[0], qty: 1 }, ...rest.haves],
-      wants: [{ item_id: first.items[1], priority: 0 }, ...rest.wants],
+      haves: byItem([{ item_id: first.items[0], qty: 1 }, ...rest.haves]),
+      wants: byItem([{ item_id: first.items[1], priority: 0 }, ...rest.wants]),
     });
 
     await switchSet(u, first.setId, { trade_enabled: false });
