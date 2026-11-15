@@ -56,7 +56,7 @@
 - [x] 1.2 비밀 값 방어: 값이 빈 `.env.example`, `.gitignore` 에 `supabase/.temp` 추가, 커밋 전 비밀 값 스캔(gitleaks), CI `secrets` 작업 (ADR-0003)
 - [x] 1.3 pnpm 워크스페이스 + `apps/web` (Next.js 16 App Router, TypeScript strict, Tailwind, shadcn/ui, ADR-0006) + `packages/shared`. `pnpm dev / build / lint / typecheck / test` 가 돈다
 - [x] 1.4 `services/matcher` (Python 3.12, uv, pytest, 커버리지). 빈 테스트 하나가 통과한다 (병행 가능)
-- [ ] 1.5 `supabase init`, 로컬 기동, `supabase db reset` 이 돈다. 이메일·비밀번호 로그인은 로컬 `config.toml` 에서만 켠다 (병행 가능)
+- [x] 1.5 `supabase init`, 로컬 기동, `supabase db reset` 이 돈다. 이메일·비밀번호 로그인은 로컬 `config.toml` 에서만 켠다 (병행 가능)
 - [ ] 1.6 테스트 러너: Vitest(웹 단위), Vitest + supabase-js(`supabase/tests`, `pnpm test:db`), Playwright(모바일 뷰포트, `pnpm test:e2e`)
 - [ ] 1.7 CI 작업: `web`, `matcher`, `db`, `e2e`, `prod-build`, `secrets` (testing.md 5장). `skip` / `only` 가 있으면 실패
 
