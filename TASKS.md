@@ -28,7 +28,7 @@
 
 코드로 해결되지 않는 것. 필요한 스프린트 전에 준비한다.
 
-- [ ] GitHub 공개 저장소 (Sprint 1)
+- [x] GitHub 공개 저장소 (Sprint 1)
 - [ ] 카카오·구글 OAuth 앱 (Sprint 2)
 - [ ] 프로세카 세트 10개의 세트 이름, 종류, 아이템 이름 목록, 칸 비율 (Sprint 2)
 - [ ] 운영용 Supabase 프로젝트, Vercel 프로젝트, 도메인 (Sprint 3)
@@ -58,7 +58,7 @@
 - [x] 1.4 `services/matcher` (Python 3.12, uv, pytest, 커버리지). 빈 테스트 하나가 통과한다 (병행 가능)
 - [x] 1.5 `supabase init`, 로컬 기동, `supabase db reset` 이 돈다. 이메일·비밀번호 로그인은 로컬 `config.toml` 에서만 켠다 (병행 가능)
 - [x] 1.6 테스트 러너: Vitest(웹 단위), Vitest + supabase-js(`supabase/tests`, `pnpm test:db`), Playwright(모바일 뷰포트, `pnpm test:e2e`)
-- [ ] 1.7 CI 작업: `web`, `matcher`, `db`, `e2e`, `prod-build`, `secrets` (testing.md 5장). `skip` / `only` 가 있으면 실패
+- [x] 1.7 CI 작업: `web`, `matcher`, `db`, `e2e`, `prod-build`, `secrets` (testing.md 5장). `skip` / `only` 가 있으면 실패
 
 **끝났다는 기준**: 빈 PR 하나가 모든 CI 작업을 통과한다. 저장소에 비밀 값이 없다.
 
@@ -73,7 +73,7 @@
 - [ ] 2.5 `supabase gen types` 결과를 `packages/shared` 에 두고 웹에서 import. 타입이 마이그레이션과 어긋나면 CI 가 실패
 - [ ] 2.6 로그인: 카카오, 구글, 만 14세 이상 확인, 닉네임, 프로필 생성. 카카오에서 이메일 없는 사용자를 허용하는 설정을 실제로 확인하고 architecture.md 5장을 갱신 — 테스트 C4
 - [ ] 2.7 로그인 가드 — 테스트 E5
-- [ ] 2.8 E2E 테스트 로그인 경로 (`*.e2e.ts` + `pageExtensions`, 운영 빌드에서 제외) — 테스트 E6, E7
+- [ ] 2.8 E2E 테스트 로그인 경로 (`*.e2e.ts` + `pageExtensions`, 운영 빌드에서 제외). CI `prod-build` 작업에 E6·E7 을 붙이고, `e2e` 작업에 로컬 Supabase 기동을 넣는다 — 테스트 E6, E7
 - [ ] 2.9 `cacheComponents` 유지 여부 결정: 로그인한 사용자별 화면과 데이터가 다른 사용자에게 캐시로 노출되지 않아야 한다. 번들 문서(`cacheComponents.md`, `08-caching.md`)를 읽고 정한 뒤 ADR 로 남긴다 (`ecc:architecture-decision-records`, ADR-0006 의 위험 항목을 닫는다) — 테스트 E8
 - [ ] 2.10 프로세카 시드: 세트 10개와 아이템 (`supabase/seed.sql`, 사진 없이 이름만, 실제 개인정보 없음)
 - [ ] 2.11 `security-review` (RLS, 인증)
@@ -141,7 +141,7 @@ DB:
 - [ ] 4.11 성능 측정: 250 / 500 / 1000명, 몰린 세트 — 테스트 M14, M15, M16, M21. 결과로 `docs/matcher.md` 8장을 채우고 임시값(60초, 상한 5000)을 확정
 
 연결:
-- [ ] 4.12 매처 실행기: 뷰 읽기 → `propose_match` 호출 → `matcher_runs` 기록 — 매처 통합 테스트
+- [ ] 4.12 매처 실행기: 뷰 읽기 → `propose_match` 호출 → `matcher_runs` 기록 — 매처 통합 테스트. CI `db` 작업에 `uv run pytest -m integration` 단계를 넣는다
 - [ ] 4.13 GitHub Actions 예약 워크플로(10분, concurrency 그룹). **운영에서는 꺼 둔다**
 - [ ] 4.14 운영자 화면: 매처 실행 기록, 마지막 실행이 30분을 넘으면 경고 (ADR-0003)
 - [ ] 4.15 `ecc:python-review`, `security-review`
@@ -187,7 +187,7 @@ DB:
 - [ ] 6.2 정식 랜딩 페이지 (`design-taste-frontend`). Sprint 3 의 한 화면 소개를 대체한다 (병행 가능)
 - [ ] 6.3 구양이 캐릭터 그림과 굿즈 사진 넣기 (준비된 만큼. DESIGN.md "구양이 자리")
 - [ ] 6.4 DB 점검: 인덱스(architecture.md 3.6), 배송 정보 삭제 작업이 도는지 감시
-- [ ] 6.5 `ecc:production-audit`, `security-review`, 접근성 점검
+- [ ] 6.5 `ecc:production-audit`, `security-review`, 접근성 점검. 워크플로의 외부 액션 SHA 를 최신 릴리스로 갱신한다 (ADR-0003 "CI 보안 규칙")
 - [ ] 6.6 출시 전 수동 점검 (testing.md 9장): 실제 카카오·구글 로그인, iOS·안드로이드 푸시, Resend 실제 발송, pg_cron 과 매처 예약 실행, 테스트 로그인 경로 404
 - [ ] 6.7 문서 갱신 (`ecc:update-docs`): PRD 전달 단계 상태, architecture, DESIGN, README
 - [ ] 6.8 정식 공개

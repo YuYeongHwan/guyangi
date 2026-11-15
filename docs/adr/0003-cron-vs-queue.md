@@ -54,5 +54,18 @@
 - 시드 데이터와 테스트 픽스처에 실제 이름·주소·전화번호를 쓰지 않는다.
 - 비밀 값이 커밋됐다면 기록을 지우는 것으로 끝내지 않고 그 키를 즉시 재발급한다.
 
+### CI 보안 규칙 (공개 저장소)
+공개 저장소라 누구나 PR 을 열 수 있다. 워크플로(`.github/workflows/`)는 아래를 지킨다.
+
+- **권한은 최소로.** 워크플로 기본 권한은 `contents: read`. 더 필요한 작업이 생기면 그 작업에만 넓히고 이유를 주석으로 적는다. 체크아웃은 `persist-credentials: false`.
+- **트리거는 `pull_request` 와 `main` 푸시만.** `pull_request_target` 은 쓰지 않는다 (포크의 코드가 저장소 권한과 secrets 를 갖고 실행된다). PR 검사 작업에는 secrets 를 넘기지 않는다. 테스트는 로컬 Supabase 의 기본 키만 쓴다.
+- **외부 액션은 커밋 SHA 로 고정**하고 옆에 버전을 주석으로 적는다. 태그는 다른 커밋으로 옮겨질 수 있다. 갱신은 출시 전 점검(TASKS 6.5)에서 한다.
+- **같은 PR 에 새 푸시가 오면 이전 실행을 취소한다** (`concurrency`). `main` 푸시의 실행은 취소하지 않는다.
+- **경로 필터(`paths`)를 쓰지 않는다.** 필수 검사가 아예 실행되지 않으면 PR 이 "대기 중" 으로 막힌다. 모든 작업이 모든 PR 에서 돈다.
+- **도구 버전은 저장소 파일에서 읽는다**: Node 는 `.nvmrc`, pnpm 은 `package.json` 의 `packageManager`, Python 은 `services/matcher/.python-version`. Supabase CLI 와 uv 는 워크플로의 `env` 에 고정한다.
+- **캐시**: pnpm 저장소, uv, Playwright 브라우저. 캐시 키는 잠금 파일과 도구 버전에서 만든다.
+- **건너뛴 테스트는 실패다** (`scripts/check-no-skip.sh`). 예외는 `.github/skip-allowlist.txt` 에 사유와 함께 적은 것만.
+- `main` 의 필수 검사: `secrets`, `web`, `matcher`, `db`, `e2e`, `prod-build`. 작업 이름을 바꾸면 브랜치 보호도 함께 바꾼다.
+
 ### 전환 기준
 다음 중 하나가 되면 큐 기반으로 옮기는 ADR 을 새로 쓴다: 배치 한 번이 5분을 넘는다, 제안 지연에 대한 사용자 불만이 반복된다, 활성 사용자가 수천 명을 넘는다.
