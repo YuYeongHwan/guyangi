@@ -96,6 +96,7 @@ erDiagram
     uuid user_id PK
     bigint item_id PK
     smallint priority
+    timestamptz created_at "고른 시각"
   }
   matches {
     bigint id PK

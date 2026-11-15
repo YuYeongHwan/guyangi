@@ -168,7 +168,7 @@ flowchart LR
 |---|---|---|
 | `collection_sets` | `PK (user_id, set_id)`, `trade_enabled boolean not null default false`, `want_mode text not null default 'all_missing' check (all_missing, selected)`, `added_at` | 도감에 추가한 세트. `trade_enabled` = **세트의 교환 참여 스위치**. 꺼져 있으면 그 세트의 아이템은 양에도 구에도 없다. `want_mode` = 구의 범위 (아래) |
 | `collection_entries` | `PK (user_id, item_id)`, `owned_qty int not null default 0`, `keep_qty int`(null 허용), `trade_enabled boolean not null default true`, `reserved_qty int not null default 0`, `updated_at` | 칸 하나. `keep_qty` 가 null 이면 **기본(종류마다 하나 소장)**, 숫자면 이 칸만 바꾼 소장 개수. `trade_enabled = false` 는 "이 칸은 내놓지 않음" (양에만 작용한다) |
-| `wants` | `PK (user_id, item_id)`, `priority smallint not null default 0` | `want_mode = 'all_missing'` 에서는 구의 우선순위만 담는다. `'selected'` 에서는 **행이 있는 아이템만 구**이고 `priority` 는 그 안의 우선순위다 |
+| `wants` | `PK (user_id, item_id)`, `priority smallint not null default 0`, `created_at timestamptz not null default now()` | `want_mode = 'all_missing'` 에서는 구의 우선순위만 담는다. `'selected'` 에서는 **행이 있는 아이템만 구**이고 `priority` 는 그 안의 우선순위다. `created_at` = 고른 시각 (`selected` 에서 대기 시간의 기준) |
 
 **실제 소장 개수** = `coalesce(keep_qty, least(owned_qty, 1))`. 하나뿐인 굿즈는 기본으로 양에 잡히지 않고, 보유가 0→2 로 늘면 저절로 하나만 소장한다. 기본값을 `keep_qty = 1` 로 저장하지 않는 이유는 보유 0 인 칸에서 `keep_qty <= owned_qty` 를 어기기 때문이다.
 
@@ -193,7 +193,7 @@ check (owned_qty - coalesce(keep_qty, least(owned_qty, 1)) - reserved_qty >= 0)
 권한 (RLS 는 본인 행만, 4장):
 - `collection_sets`: insert·delete, update 는 `trade_enabled`, `want_mode` 만.
 - `collection_entries`: insert·update 는 `owned_qty`, `keep_qty`, `trade_enabled` 만 (insert 는 키 컬럼 포함). **`reserved_qty` 는 insert 로도 update 로도 쓸 수 없고 함수만 바꾼다.** delete 는 `reserved_qty = 0` 인 행만.
-- `wants`: insert·update(`priority`)·delete.
+- `wants`: insert·update(`priority`)·delete. `created_at` 은 사용자가 쓸 수 없다 (기본값으로만 들어간다).
 - insert 정책은 `user_id = (select auth.uid())` 에 더해 **호출자가 읽을 수 있는 세트·아이템인지**(`exists (select 1 from sets ...)`, `exists (select 1 from items ...)`) 확인한다. 정책 검사는 FK 검사보다 먼저 되므로, 비공개 세트의 id 를 넣어 보고 FK 오류(23503) 여부로 존재를 알아내는 길이 막힌다 (2.2 보안 검토 정보성 3).
 - identity 시퀀스가 생기면 `anon`, `authenticated` 권한을 회수한다 (2.2 와 같은 규칙. 위 세 테이블은 identity 컬럼이 없다).
 
@@ -215,7 +215,9 @@ where cs.trade_enabled
 create view wanted_items as
 select cs.user_id, i.id as item_id, i.set_id,
        coalesce(w.priority, 0) as priority,
-       coalesce(e.updated_at, cs.added_at) as waiting_since  -- 대기 시간 기준
+       -- 대기 시간 기준: 고른 것만 구하기는 고른 시각, 빈칸 전부 구하기는 칸 수정 시각(없으면 세트 추가 시각)
+       case when cs.want_mode = 'selected' then w.created_at
+            else coalesce(e.updated_at, cs.added_at) end as waiting_since
 from collection_sets cs
 join sets s on s.id = cs.set_id and s.is_published
 join items i on i.set_id = cs.set_id
@@ -236,7 +238,7 @@ where cs.trade_enabled
            -- 취소된 매칭이라도 이미 발송되어 오는 중인 것
            or (l.shipped_at is not null and l.settled_at is null and l.released_at is null)))
   ```
-- **정지된 사용자**: 양·구 뷰에는 정지 여부를 넣지 않는다. 사용자는 `user_stats.suspended_at` 을 읽을 권한이 없어서(3.1) `security_invoker` 뷰에 넣으면 사용자 세션에서 권한 오류가 난다. 매처가 `matchable_users` 와 join 해서 거른다 (TASKS 4.2 에서 확정).
+- **정지된 사용자**: 양·구 뷰에는 정지 여부를 넣지 않는다. 사용자는 `user_stats.suspended_at` 을 읽을 권한이 없어서(3.1) `security_invoker` 뷰에 넣으면 사용자 세션에서 권한 오류가 난다. **매처가 `matchable_users` 와 join 해서 거른다** (TASKS 4.2, 4.12). 뷰가 막아 주지 않으므로 빠뜨리면 정지된 사용자에게 제안이 간다. 테스트 M22 와 P13 이 이것을 지킨다.
 
 `matchable_users` 뷰 (Sprint 4): 정지되지 않은 사용자의 `user_id`, `can_cycle3`(완료 3회 이상 and 확인된 신고 0회), `priority_since`.
 
