@@ -53,6 +53,26 @@ describe("R4 카탈로그 읽기: 공개된 것만 보인다", () => {
     expect(viaSet.data).toEqual([]);
   });
 
+  test.each([
+    ["방문자", async () => visitor()],
+    ["사용자 A", async () => (await createUser()).client],
+  ])("%s 는 임베딩·개수 세기·직접 조회로도 비공개 세트를 알아낼 수 없다", async (_who, makeClient) => {
+    const c = await seedCatalog();
+    const client = await makeClient();
+
+    const viaSeries = await client.from("series").select("id, sets(id, name)").eq("id", c.seriesId).single();
+    const viaItem = await client.from("items").select("id, sets(id)").eq("id", c.hiddenItemId);
+    const hiddenItem = await client.from("items").select("id").eq("set_id", c.hiddenId);
+    const counted = await client.from("sets").select("id", { count: "exact", head: true }).eq("series_id", c.seriesId);
+    const byName = await client.from("sets").select("id").like("name", "비공개 세트%").eq("series_id", c.seriesId);
+
+    expect(viaSeries.data?.sets.map((s) => s.id)).toEqual([c.openId]);
+    expect(viaItem.data).toEqual([]);
+    expect(hiddenItem.data).toEqual([]);
+    expect(counted.count).toBe(1);
+    expect(byName.data).toEqual([]);
+  });
+
   test("운영자는 비공개 세트와 그 아이템도 읽는다", async () => {
     const c = await seedCatalog();
     const admin = await createAdmin();
@@ -225,6 +245,28 @@ describe("R4 굿즈 이미지 버킷: 공개 읽기, 운영자만 업로드", ()
 
     expect(overwrite.error).not.toBeNull();
     expect((await fetch(publicUrl(path))).status).toBe(200);
+  });
+
+  test.each([
+    ["방문자", async () => visitor()],
+    ["사용자 A", async () => (await createUser()).client],
+  ])("%s 는 버킷의 파일 목록을 볼 수 없고, 옮기거나 복사할 수 없다", async (_who, makeClient) => {
+    const admin = await createAdmin();
+    const client = await makeClient();
+    const folder = `test-${randomUUID()}`;
+    const path = `${folder}/a.png`;
+    must(await admin.client.storage.from("goods").upload(path, png()));
+
+    const list = await client.storage.from("goods").list(folder);
+    const move = await client.storage.from("goods").move(path, `${folder}/moved.png`);
+    const copy = await client.storage.from("goods").copy(path, `${folder}/copied.png`);
+
+    expect(list.data ?? []).toEqual([]);
+    expect(move.error).not.toBeNull();
+    expect(copy.error).not.toBeNull();
+    // 대조군: 운영자에게는 원래 파일 하나만 그대로 보인다
+    const adminList = must(await admin.client.storage.from("goods").list(folder));
+    expect(adminList.map((f) => f.name)).toEqual(["a.png"]);
   });
 
   test("운영자라도 이미지가 아닌 파일은 올릴 수 없다", async () => {

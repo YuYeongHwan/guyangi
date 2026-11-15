@@ -94,6 +94,12 @@ create policy items_delete_admin on public.items
   for delete to authenticated
   using ((select public.is_admin()));
 
+-- ── 시퀀스 권한 ──────────────────────────────────────────────────────────
+-- `revoke all on table` 은 identity 시퀀스에 닿지 않는다. Supabase 기본 권한이 anon·authenticated 에게
+-- 시퀀스의 usage·select·update 를 주므로 따로 회수한다. identity 컬럼의 insert 는 시퀀스 권한 없이도 된다.
+revoke all on sequence public.series_id_seq, public.sets_id_seq, public.items_id_seq
+  from anon, authenticated;
+
 -- ── Storage: 굿즈 이미지 ─────────────────────────────────────────────────
 -- 공개 읽기(공개 주소), 업로드·수정·삭제는 운영자만. 운영자가 직접 촬영한 사진만 올린다.
 insert into storage.buckets (id, name, public, file_size_limit, allowed_mime_types)
