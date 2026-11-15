@@ -103,17 +103,24 @@ describe("R4 카탈로그 읽기: 공개된 것만 보인다", () => {
     const c = await seedCatalog();
     const client = await makeClient();
     const admin = await createAdmin();
+    const count = () => client.from("series").select("id", { count: "exact", head: true }).eq("id", c.seriesId);
     const visible = await client.from("series").select("id").eq("id", c.seriesId);
+    const countBefore = await count();
     must(await service.from("sets").update({ is_published: false }).eq("id", c.openId));
 
-    const direct = await client.from("series").select("id").eq("id", c.seriesId);
-    const bySlug = await client.from("series").select("id", { count: "exact", head: true }).like("slug", "test-%").eq("id", c.seriesId);
+    const direct = await client.from("series").select("id, sets(id)").eq("id", c.seriesId);
+    const bySlug = await client.from("series").select("id").like("slug", "test-%").in("id", [c.seriesId]);
+    const countAfter = await count();
+    const viaSet = await client.from("sets").select("id, series(name)").eq("series_id", c.seriesId);
     const forAdmin = await admin.client.from("series").select("id").eq("id", c.seriesId);
 
-    // 대조군: 공개 세트가 있을 때는 보였다
+    // 대조군: 공개 세트가 있을 때는 보였고, 개수도 1 이었다
     expect(visible.data).toEqual([{ id: c.seriesId }]);
+    expect(countBefore.count).toBe(1);
     expect(direct.data).toEqual([]);
-    expect(bySlug.count).toBe(0);
+    expect(bySlug.data).toEqual([]);
+    expect(countAfter.count).toBe(0);
+    expect(viaSet.data).toEqual([]);
     expect(forAdmin.data).toEqual([{ id: c.seriesId }]);
   });
 });
