@@ -106,6 +106,76 @@ describe("R5 user_stats: 평판은 읽을 수 있지만 쓸 수 없다", () => {
   });
 });
 
+describe("user_status(p_user): 정지·우선권 시각은 본인과 운영자만 읽는다", () => {
+  const suspendedAt = "2026-03-04T05:06:07+00:00";
+  const prioritySince = "2026-03-05T00:00:00+00:00";
+  async function suspendedUser() {
+    const user = await createUser();
+    must(
+      await service
+        .from("user_stats")
+        .update({ suspended_at: suspendedAt, priority_since: prioritySince })
+        .eq("user_id", user.id),
+    );
+    return user;
+  }
+
+  test("A 가 B 의 상태를 조회하면 거부된다", async () => {
+    const [a, b] = await Promise.all([createUser(), suspendedUser()]);
+
+    const { data, error } = await a.client.rpc("user_status", { p_user: b.id });
+
+    expect(error?.code).toBe(DENIED);
+    expect(data).toBeNull();
+  });
+
+  test("null 을 넣으면 거부된다", async () => {
+    const a = await suspendedUser();
+
+    const { data, error } = await a.client.rpc("user_status", { p_user: null });
+
+    expect(error?.code).toBe(DENIED);
+    expect(data).toBeNull();
+  });
+
+  test("없는 사용자를 조회해도 남의 것을 조회할 때와 같은 오류다 (가입 여부가 드러나지 않는다)", async () => {
+    const [a, b] = await Promise.all([createUser(), createUser()]);
+
+    const other = await a.client.rpc("user_status", { p_user: b.id });
+    const missing = await a.client.rpc("user_status", { p_user: randomUUID() });
+
+    expect(missing.error?.code).toBe(DENIED);
+    expect(missing.error?.message).toBe(other.error?.message);
+  });
+
+  test("본인은 자기 상태를 읽는다", async () => {
+    const a = await suspendedUser();
+
+    const { data, error } = await a.client.rpc("user_status", { p_user: a.id });
+
+    expect(error).toBeNull();
+    expect(data).toEqual([{ user_id: a.id, suspended_at: suspendedAt, priority_since: prioritySince }]);
+  });
+
+  test("운영자는 다른 사용자의 상태를 읽는다", async () => {
+    const [admin, b] = await Promise.all([createAdmin(), suspendedUser()]);
+
+    const { data, error } = await admin.client.rpc("user_status", { p_user: b.id });
+
+    expect(error).toBeNull();
+    expect(data).toEqual([{ user_id: b.id, suspended_at: suspendedAt, priority_since: prioritySince }]);
+  });
+
+  test("방문자는 부를 수 없다", async () => {
+    const b = await suspendedUser();
+
+    const { data, error } = await visitor().rpc("user_status", { p_user: b.id });
+
+    expect(error?.code).toBe(DENIED);
+    expect(data).toBeNull();
+  });
+});
+
 describe("R6 admins: 읽을 수 없고 자신을 운영자로 만들 수 없다", () => {
   test("A 는 admins 를 읽을 수 없다 (운영자가 실제로 있는 상태에서)", async () => {
     const [a, admin] = await Promise.all([createUser(), createAdmin()]);
