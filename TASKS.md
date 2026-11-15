@@ -66,12 +66,12 @@
 
 목표: 로그인한 사용자가 자기 도감 행만 읽고 쓸 수 있다. 만드는 테이블은 architecture.md 3.8.
 
-- [ ] 2.1 사용자 테이블: `profiles`(약관·처리방침 동의 시각과 버전 컬럼 포함), `user_stats`, `admins`, `is_admin()`, `app_settings` 와 초기값 — 테스트 R5, R6, R16
+- [x] 2.1 사용자 테이블: `profiles`(약관·처리방침 동의 시각과 버전 컬럼 포함), `user_stats`, `admins`, `is_admin()`, `app_settings` 와 초기값 — 테스트 R5, R6, R16
 - [ ] 2.2 카탈로그: `series`, `sets`(`cell_ratio` 포함), `items`, 굿즈 이미지 Storage 버킷(공개 읽기, 운영자만 업로드) — 테스트 R4
 - [ ] 2.3 도감 테이블: `collection_sets`, `collection_entries`(`reserved_qty` 와 check 제약 3개, 컬럼별 update 권한), `wants` — 테스트 R1, R2, R3, P10, C1(DB 제약)
 - [ ] 2.4 RLS 전수 검사 — 테스트 R17
 - [ ] 2.5 `supabase gen types` 결과를 `packages/shared` 에 두고 웹에서 import. 타입이 마이그레이션과 어긋나면 CI 가 실패
-- [ ] 2.6 로그인: 카카오, 구글, 만 14세 이상 확인, 닉네임, 프로필 생성. 카카오에서 이메일 없는 사용자를 허용하는 설정을 실제로 확인하고 architecture.md 5장을 갱신 — 테스트 C4
+- [ ] 2.6 로그인: 카카오, 구글, 만 14세 이상 확인, 닉네임, 프로필 생성. 카카오에서 이메일 없는 사용자를 허용하는 설정을 실제로 확인하고 architecture.md 5장을 갱신. **금지 닉네임 차단**: 사칭할 수 있는 이름(운영자, 관리자, admin, 구양이 등)은 프로필 생성과 닉네임 변경에서 거부한다 — 테스트 C4
 - [ ] 2.7 로그인 가드 — 테스트 E5
 - [ ] 2.8 E2E 테스트 로그인 경로 (`*.e2e.ts` + `pageExtensions`, 운영 빌드에서 제외). CI `prod-build` 작업에 E6·E7 을 붙이고, `e2e` 작업에 로컬 Supabase 기동을 넣는다 — 테스트 E6, E7
 - [ ] 2.9 `cacheComponents` 유지 여부 결정: 로그인한 사용자별 화면과 데이터가 다른 사용자에게 캐시로 노출되지 않아야 한다. 번들 문서(`cacheComponents.md`, `08-caching.md`)를 읽고 정한 뒤 ADR 로 남긴다 (`ecc:architecture-decision-records`, ADR-0006 의 위험 항목을 닫는다) — 테스트 E8
@@ -153,7 +153,7 @@ DB:
 목표: 제안을 받고, 수락하고, 보내고, 받아서 도감에 반영되기까지. 끝나면 1:1 과 3자 순환을 사용자에게 연다.
 
 DB:
-- [ ] 5.1 `shipping_addresses`, `reports`, `push_subscriptions`, `notification_settings` 와 RLS — 테스트 R8~R15
+- [ ] 5.1 `shipping_addresses`, `reports`, `push_subscriptions`, `notification_settings` 와 RLS — 테스트 R8~R15. **탈퇴 처리를 여기서 정한다**: 지금은 탈퇴하면 프로필과 도감이 함께 지워진다(`on delete cascade`). 진행 중인 교환이 있는 사용자의 탈퇴를 막을지 미룰지, 탈퇴 후에도 상대방에게 교환 기록이 남게 하는 방법(예: 매칭 쪽 FK 는 cascade 하지 않고 익명화)을 정해 ADR 과 테스트로 남긴다. 교환 기록이 상대방에게서 사라지면 안 된다
 - [ ] 5.2 `accept_match`, `decline_match` — 테스트 S1, S2, S3, S9, S11, S14(재응답)
 - [ ] 5.3 `mark_shipped`, `mark_received`, 완료 시 도감 이동 — 테스트 S4~S8, S10, S12, S13, S14(재수령)
 - [ ] 5.4 `run_timers` 나머지: 발송 경고, 분쟁 전환, 자동 수령, 배송 정보 삭제, 재매칭 우선권 — 테스트 T2(우선권), T4~T8

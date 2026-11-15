@@ -141,12 +141,15 @@ flowchart LR
 ### 3.1 사용자
 | 테이블 | 주요 컬럼 | 비고 |
 |---|---|---|
-| `profiles` | `id uuid PK → auth.users`, `nickname text unique`, `age_confirmed_at timestamptz not null`, `terms_agreed_at timestamptz not null`, `terms_version text not null`, `privacy_agreed_at timestamptz not null`, `privacy_version text not null`, `created_at` | 만 14세 이상 확인 시각, 이용약관·개인정보 처리방침에 동의한 시각과 그때의 문서 버전. 사용자가 직접 고칠 수 있는 것은 `nickname` 뿐이다 (컬럼 권한). 문서가 바뀌어 다시 동의받으면 시각과 버전을 갱신한다 |
-| `user_stats` | `user_id uuid PK → profiles`, `completed_count int`, `confirmed_report_count int`, `no_response_count int`, `priority_since timestamptz`, `suspended_at timestamptz` | 최소 평판. **함수만 쓴다.** `priority_since` = 재매칭 우선권, 다음 제안을 받으면 비운다 |
+| `profiles` | `id uuid PK → auth.users`, `nickname text`(2~12자, 한글 완성형·영문·숫자·밑줄, `lower(nickname)` 에 unique), `age_confirmed_at timestamptz not null`, `terms_agreed_at timestamptz not null`, `terms_version text not null`, `privacy_agreed_at timestamptz not null`, `privacy_version text not null`, `created_at` | 만 14세 이상 확인 시각, 이용약관·개인정보 처리방침에 동의한 시각과 그때의 문서 버전. 사용자가 직접 고칠 수 있는 것은 `nickname` 뿐이다 (컬럼 권한). 문서가 바뀌어 다시 동의받으면 시각과 버전을 갱신한다 |
+| `user_stats` | `user_id uuid PK → profiles`, `completed_count int`, `confirmed_report_count int`, `no_response_count int`, `priority_since timestamptz`, `suspended_at timestamptz` | 최소 평판. **함수만 쓴다.** `priority_since` = 재매칭 우선권, 다음 제안을 받으면 비운다. 다른 사용자에게는 횟수 3개만 보이고, `suspended_at` 과 `priority_since` 는 `user_status(user_id)` 함수로 본인과 운영자만 읽는다 |
 | `admins` | `user_id uuid PK → profiles` | 클라이언트 접근 없음. `is_admin()` 함수로만 확인 |
 
 - `confirmed_report_count` 는 확인된 미발송 신고만 센다: 운영자가 확인한 신고 + 분쟁 후 취소에서 자동 기록된 미발송.
 - 1회 이상이면 cycle3 불가, 2회 이상이면 `suspended_at` 이 찍혀 매칭 대상에서 빠진다(해제는 운영자). 기준 횟수는 `app_settings`.
+- 닉네임은 영문 대소문자를 구분하지 않고 중복을 막는다 (`Cat` 과 `cat` 은 같은 닉네임). 사칭할 수 있는 이름(운영자, 관리자, admin, 구양이 등)은 `create_profile` 과 닉네임 변경에서 막는다 (TASKS 2.6).
+- 탈퇴하면 `auth.users` → `profiles` → `user_stats`·도감이 함께 지워진다 (`on delete cascade`). 진행 중인 교환이 있는 사용자의 탈퇴 처리와, 탈퇴 후에도 상대방에게 교환 기록이 남게 하는 방법은 Sprint 5 에서 정한다 (TASKS 5.1).
+- **컬럼 권한**: 테이블마다 `anon`·`authenticated` 의 기본 권한을 전부 회수하고 필요한 컬럼만 준다. 그래서 클라이언트의 `select('*')` 는 권한 오류(42501)가 난다. 웹 코드는 항상 컬럼을 명시한다.
 
 ### 3.2 카탈로그 (장르 독립)
 | 테이블 | 주요 컬럼 | 비고 |
@@ -203,6 +206,8 @@ where coalesce(e.owned_qty, 0) = 0
 ```
 `matchable_users` 뷰: 정지되지 않은 사용자의 `user_id`, `can_cycle3`(완료 3회 이상 and 확인된 신고 0회), `priority_since`.
 
+- **주의 (TASKS 3.7 에서 정한다)**: 사용자는 `user_stats.suspended_at` 을 읽을 권한이 없다 (3.1). 위 `tradable_haves` 는 `security_invoker` 뷰라 사용자 세션으로 읽으면 이 컬럼에서 권한 오류가 난다. 뷰를 만드는 3.7 에서 정지 여부를 확인하는 방법(예: 본인 행에만 답하는 `security definer` 함수)을 정하고 이 정의를 고친다.
+
 ### 3.4 매칭과 교환
 | 테이블 | 주요 컬럼 | 비고 |
 |---|---|---|
@@ -227,23 +232,25 @@ where coalesce(e.owned_qty, 0) = 0
 | `notifications` | `id`, `user_id FK`, `type text`, `match_id FK null`, `payload jsonb`, `needs_email boolean`, `push_sent_at`, `email_sent_at`, `delivery_attempts int`, `read_at`, `created_at` | Realtime 구독 대상. `needs_email` = 기한 알림 |
 | `push_subscriptions` | `id`, `user_id FK`, `endpoint text unique`, `p256dh text`, `auth text`, `user_agent text`, `created_at` | 기기별 웹 푸시 구독. 만료되면 삭제 |
 | `notification_settings` | `user_id uuid PK → profiles`, `email text`, `email_verified_at`, `email_enabled boolean`, `push_enabled boolean` | 알림용 이메일. 이메일은 비공개라 `profiles` 에 두지 않는다 |
-| `app_settings` | `key text PK`, `value jsonb`, `description`, `updated_at` | 아래 표 |
+| `app_settings` | `key text PK`, `value jsonb`, `description`, `is_public boolean`, `updated_at` | 아래 표. `is_public` 인 키만 로그인 사용자가 읽는다. 키 추가와 공개 여부는 마이그레이션으로만 바꾼다 |
 | `matcher_runs` | `id`, `started_at`, `finished_at`, `proposed_pair int`, `proposed_cycle3 int`, `rejected int`, `blocked_cycle3 int`, `capped_sets jsonb`, `error text` | 매처 실행 기록. `blocked_cycle3` = 1:1 때문에 성립하지 못한 3자 순환 후보 수, `capped_sets` = 후보 상한에 걸린 세트 |
 
 `app_settings` 초기값:
-| key | 값 | 뜻 |
-|---|---|---|
-| `respond_hours` | 24 | 응답 기한 |
-| `ship_warn_hours` | 48 | 발송 경고 |
-| `ship_dispute_hours` | 72 | 분쟁 전환 |
-| `auto_receive_days` | 7 | 발송 후 자동 수령 확인까지 |
-| `shipping_retention_days` | 30 | 배송 정보 보관 |
-| `cycle3_min_completed` | 3 | cycle3 최소 완료 횟수 |
-| `cycle3_max_reports` | 0 | cycle3 허용 신고 횟수 |
-| `suspend_report_count` | 2 | 매칭 정지 신고 횟수 |
-| `terms_version`, `privacy_version` | 초안 버전 | 현재 이용약관·처리방침 버전. 프로필의 버전과 다르면 다시 동의받는다 |
-| `repropose_cooldown_days` | 7 | 거절·만료된 같은 leg 조합을 다시 제안하지 않는 기간 |
-| `cycle3_candidates_per_set_max` | 5000 (임시값) | 세트당 3자 순환 후보 상한. Sprint 4 실측 후 조정 |
+| key | 값 | 공개 | 뜻 |
+|---|---|---|---|
+| `respond_hours` | 24 | 공개 | 응답 기한 |
+| `ship_warn_hours` | 48 | 공개 | 발송 경고 |
+| `ship_dispute_hours` | 72 | 공개 | 분쟁 전환 |
+| `auto_receive_days` | 7 | 공개 | 발송 후 자동 수령 확인까지 |
+| `shipping_retention_days` | 30 | 공개 | 배송 정보 보관 |
+| `cycle3_min_completed` | 3 | 공개 | cycle3 최소 완료 횟수 |
+| `cycle3_max_reports` | 0 | 비공개 | cycle3 허용 신고 횟수 |
+| `suspend_report_count` | 2 | 비공개 | 매칭 정지 신고 횟수 |
+| `terms_version`, `privacy_version` | `2026-11-draft` | 공개 | 현재 이용약관·처리방침 버전. 프로필의 버전과 다르면 다시 동의받는다 |
+| `repropose_cooldown_days` | 7 | 비공개 | 거절·만료된 같은 leg 조합을 다시 제안하지 않는 기간 |
+| `cycle3_candidates_per_set_max` | 5000 (임시값) | 비공개 | 세트당 3자 순환 후보 상한. Sprint 4 실측 후 조정 |
+
+공개 기준: 화면에 보여 줘야 하는 값(기한 안내, 보관 기간 안내, 3자 순환 자격 안내, 약관 버전)만 공개한다. 신고 기준 횟수와 매처 내부 값은 악용 여지가 있어 운영자만 읽는다.
 
 ### 3.6 인덱스
 - 모든 FK 컬럼: `items(set_id)`, `sets(series_id)`, `match_legs(match_id)`, `match_legs(from_user)`, `match_legs(to_user)`, `match_legs(item_id)`, `reports(match_id)` 등
@@ -295,8 +302,8 @@ where coalesce(e.owned_qty, 0) = 0
 
 | 테이블 | 읽기 | 쓰기 |
 |---|---|---|
-| `profiles` | 로그인 사용자 전체 (닉네임) | 본인 행의 `nickname` update 만. insert 와 동의 컬럼은 함수만 (2.0) |
-| `user_stats` | 로그인 사용자 전체 (평판 표시) | 없음 (함수만) |
+| `profiles` | 로그인 사용자 전체. 컬럼은 `id`, `nickname`, `created_at`, `terms_version`, `privacy_version` 만 (동의 시각은 열지 않는다) | 본인 행의 `nickname` update 만. insert 와 동의 컬럼은 함수만 (2.0) |
+| `user_stats` | 로그인 사용자 전체, 평판 횟수 3개만. `suspended_at`·`priority_since` 는 `user_status()` 로 본인과 운영자만 | 없음 (함수만) |
 | `admins` | 없음 | 없음 |
 | `series`, `sets`, `items` | 공개된 것은 누구나 | 운영자 |
 | `set_requests` | 본인 것, 운영자는 전체 | 본인 insert, 운영자 update |
@@ -308,7 +315,7 @@ where coalesce(e.owned_qty, 0) = 0
 | `notifications` | 본인 것 | 본인 것의 `read_at` |
 | `push_subscriptions` | 본인 것 | 본인 것 insert·delete |
 | `notification_settings` | **본인 것만** | 본인 것의 `email`, `email_enabled`, `push_enabled` (`email_verified_at` 은 함수만) |
-| `app_settings` | 로그인 사용자 전체 | 운영자 |
+| `app_settings` | 로그인 사용자는 `is_public` 인 키만, 운영자는 전체 | 운영자가 `value` 만 update |
 | `matcher_runs` | 운영자 | 없음 |
 
 배송 정보 정책 (핵심):

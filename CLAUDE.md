@@ -49,6 +49,8 @@ guyangi/
   기억과 문서가 다르면 문서를 따른다
 - ecc:nextjs-turbopack 등 스킬의 안내가 16 문서와 다르면 16 문서를 따르고, 차이를 알려 준다
 - 서버 액션/라우트 핸들러에서 zod로 입력 검증
+- Supabase 조회는 항상 컬럼을 명시한다. `select('*')` 를 쓰지 않는다. 테이블에 컬럼 권한이 걸려 있어
+  `*` 는 권한 오류(42501)로 실패한다 (architecture.md 3.1)
 - DB 변경은 반드시 supabase/migrations 에 마이그레이션 파일로
 - 타입은 `supabase gen types` 결과를 packages/shared 에서 import
 - 매칭 엔진 변경 시 pytest 통과 필수. 사이클에 같은 사용자 중복 금지 테스트 유지
