@@ -95,6 +95,27 @@ describe("R4 카탈로그 읽기: 공개된 것만 보인다", () => {
     expect(sets.data).toEqual([]);
     expect(items.data).toEqual([]);
   });
+
+  test.each([
+    ["방문자", async () => visitor()],
+    ["사용자 A", async () => (await createUser()).client],
+  ])("%s 는 공개된 세트가 없는 작품을 볼 수 없다 (운영자는 본다)", async (_who, makeClient) => {
+    const c = await seedCatalog();
+    const client = await makeClient();
+    const admin = await createAdmin();
+    const visible = await client.from("series").select("id").eq("id", c.seriesId);
+    must(await service.from("sets").update({ is_published: false }).eq("id", c.openId));
+
+    const direct = await client.from("series").select("id").eq("id", c.seriesId);
+    const bySlug = await client.from("series").select("id", { count: "exact", head: true }).like("slug", "test-%").eq("id", c.seriesId);
+    const forAdmin = await admin.client.from("series").select("id").eq("id", c.seriesId);
+
+    // 대조군: 공개 세트가 있을 때는 보였다
+    expect(visible.data).toEqual([{ id: c.seriesId }]);
+    expect(direct.data).toEqual([]);
+    expect(bySlug.count).toBe(0);
+    expect(forAdmin.data).toEqual([{ id: c.seriesId }]);
+  });
 });
 
 describe("R4 카탈로그 쓰기: 운영자만 한다", () => {
@@ -165,6 +186,14 @@ describe("카탈로그 제약", () => {
     const badRatio = await service.from("sets").insert({ ...base, kind: "kuji", cell_ratio: "16:9" });
     const blankName = await service.from("sets").insert({ ...base, name: "  ", kind: "kuji" });
     const ok = await service.from("sets").insert({ ...base, kind: "collab_cafe" }).select("cell_ratio, is_published").single();
+    // "페어"는 fair(기획전)다. pair_bonus 는 없는 값이다
+    const pair = await service.from("sets").insert({ ...base, kind: "pair_bonus" });
+    const kinds = ["collab_cafe", "fair_bonus", "theater_bonus", "kuji", "can_badge", "other"];
+    for (const kind of kinds) {
+      const made = await service.from("sets").insert({ series_id: c.seriesId, name: `종류 ${kind} ${uniq()}`, kind });
+      expect(made.error, kind).toBeNull();
+    }
+    expect(pair.error?.code).toBe("23514");
 
     expect(badKind.error?.code).toBe("23514");
     expect(badRatio.error?.code).toBe("23514");
