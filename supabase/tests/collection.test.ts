@@ -5,13 +5,15 @@ import { describe, expect, test } from "vitest";
 
 import { createUser, must, service, visitor, type TestUser } from "./helpers";
 
-// TASKS 2.3 — docs/testing.md 의 R1, R2, R3, R18, R19 (3.3), P10 (3.2), C1 의 DB 제약 (3.6), G1~G8 (3.6.1).
+// TASKS 2.3 — docs/testing.md 의 R1, R2, R3, R18, R19 (3.3), P10 (3.2), C1 의 DB 제약 (3.6), G1~G10 (3.6.1).
 // 설계는 docs/architecture.md 3.3, 4장.
 // - 빈 결과를 단언하는 테스트는 "켜면 나온다 / 본인은 읽는다" 대조군을 함께 둔다.
 // - 양·구 뷰는 본인 세션과 service role(매처가 읽는 경로) 양쪽에서 읽어 같은지 본다.
 const DENIED = "42501";
 const CHECK = "23514";
 const NOT_INTEGER = "22P02";
+/** 예약이 남아 있어 지울 수 없음 (restrict_violation) */
+const RESTRICT = "23001";
 /** 존재하지 않는 세트·아이템 id */
 const NO_SUCH_ID = 9007199254740991;
 const uniq = () => randomUUID().slice(0, 8);
@@ -575,23 +577,7 @@ describe("G6 스위치를 다시 끄면", () => {
   });
 });
 
-describe("G7 도감에서 뺀 세트, 비공개로 돌린 세트", () => {
-  test("세트를 도감에서 빼면 남아 있는 칸은 양에 잡히지 않는다", async () => {
-    const [u, s] = await Promise.all([createUser(), seedSet(2)]);
-    await addSet(u, s.setId, { trade_enabled: true });
-    await own(u, s.items[0], 3);
-    expect((await views(u)).haves).toEqual([{ item_id: s.items[0], qty: 2 }]);
-
-    const removed = await u.client.from("collection_sets").delete().eq("user_id", u.id).eq("set_id", s.setId).select("set_id");
-
-    expect(removed.data).toEqual([{ set_id: s.setId }]);
-    expect(await views(u)).toEqual({ haves: [], wants: [] });
-    // 칸은 남아 있다
-    expect(must(await u.client.from("collection_entries").select("item_id, owned_qty").eq("user_id", u.id))).toEqual([
-      { item_id: s.items[0], owned_qty: 3 },
-    ]);
-  });
-
+describe("G7 비공개로 돌린 세트", () => {
   test("운영자가 세트를 비공개로 돌리면 양·구에서 빠진다 (service role 로 읽어도)", async () => {
     const [u, hiddenLater, stays] = await Promise.all([createUser(), seedSet(2), seedSet(2)]);
     for (const s of [hiddenLater, stays]) {
@@ -645,5 +631,158 @@ describe("G8 값의 범위", () => {
     // 대조군: 제약을 지키는 수정은 된다 (보유를 늘리거나 소장을 줄인다)
     expect((await edit(u, item, { owned_qty: 4, keep_qty: 2 })).error).toBeNull();
     expect((await edit(u, item, { keep_qty: 0 })).error).toBeNull();
+  });
+});
+
+describe("G9 대기 시간은 교환을 켠 시각보다 앞서지 않는다", () => {
+  const time = (value: string) => new Date(value).getTime();
+  const enabledAt = async (u: TestUser) =>
+    must(await u.client.from("collection_sets").select("trade_enabled_at").eq("user_id", u.id).single()).trade_enabled_at as
+      | string
+      | null;
+
+  test("세트를 넣기 전에 wants·칸을 만들어 두고 나중에 켜도 대기 시간은 켠 시각이다 (두 want_mode 모두)", async () => {
+    const [u, s] = await Promise.all([createUser(), seedSet(3)]);
+    const [pickedEarly, entryEarly, untouched] = s.items;
+    // 세트를 도감에 넣기 전에 미리 만들어 둔다
+    await pick(u, pickedEarly);
+    await own(u, entryEarly, 0);
+    await addSet(u, s.setId);
+    expect(await enabledAt(u)).toBeNull();
+
+    await switchSet(u, s.setId, { trade_enabled: true });
+    const turnedOn = time((await enabledAt(u))!);
+    // 대조군: 미리 만든 시각들은 실제로 켠 시각보다 앞선다
+    const early = [
+      must(await service.from("wants").select("created_at").eq("user_id", u.id).single()).created_at,
+      must(await service.from("collection_entries").select("updated_at").eq("user_id", u.id).single()).updated_at,
+      must(await service.from("collection_sets").select("added_at").eq("user_id", u.id).single()).added_at,
+    ];
+    for (const at of early) expect(time(at)).toBeLessThan(turnedOn);
+
+    for (const item of [pickedEarly, entryEarly, untouched]) expect(await waitingSince(u, item)).toBe(turnedOn);
+
+    // 고른 것만 구하기로 바꿔도 켠 시각은 그대로이고, 미리 고른 시각으로 돌아가지 않는다
+    await switchSet(u, s.setId, { want_mode: "selected" });
+    expect(time((await enabledAt(u))!)).toBe(turnedOn);
+    expect(await waitingSince(u, pickedEarly)).toBe(turnedOn);
+
+    // 대조군: 켠 뒤에 고른 것은 고른 시각이 대기 시간이다 (하한일 뿐, 덮어쓰지 않는다)
+    await pick(u, untouched);
+    expect(await waitingSince(u, untouched)).toBeGreaterThan(turnedOn);
+  });
+
+  test("사용자는 켠 시각을 직접 쓸 수 없다", async () => {
+    const [u, s, other] = await Promise.all([createUser(), seedSet(1), seedSet(1)]);
+    await addSet(u, s.setId, { trade_enabled: true });
+    const before = await enabledAt(u);
+    const past = "2000-01-01T00:00:00Z";
+    const mine = () => u.client.from("collection_sets").update({ trade_enabled_at: past }).eq("user_id", u.id);
+
+    const results = [
+      await mine(),
+      await u.client.from("collection_sets").update({ trade_enabled: true, trade_enabled_at: past }).eq("user_id", u.id),
+      await u.client.from("collection_sets").update({ trade_enabled_at: null }).eq("user_id", u.id),
+      await u.client.from("collection_sets").insert({ user_id: u.id, set_id: other.setId, trade_enabled: true, trade_enabled_at: past }),
+    ];
+
+    for (const result of results) expect(result.error?.code).toBe(DENIED);
+    expect(before).not.toBeNull();
+    expect(
+      must(await service.from("collection_sets").select("set_id, trade_enabled_at").eq("user_id", u.id)),
+    ).toEqual([{ set_id: s.setId, trade_enabled_at: before }]);
+  });
+
+  test("끄면 비워지고, 다시 켜면 새 시각이 된다. 켜 둔 채 다른 값을 고치면 그대로다", async () => {
+    const [u, s] = await Promise.all([createUser(), seedSet(1)]);
+    await addSet(u, s.setId, { trade_enabled: true });
+    const first = await enabledAt(u);
+    expect(first).not.toBeNull();
+    expect(await waitingSince(u, s.items[0])).toBe(time(first!));
+
+    await switchSet(u, s.setId, { trade_enabled: true, want_mode: "selected" });
+    await switchSet(u, s.setId, { want_mode: "all_missing" });
+    expect(await enabledAt(u)).toBe(first);
+
+    await switchSet(u, s.setId, { trade_enabled: false });
+    expect(await enabledAt(u)).toBeNull();
+
+    await switchSet(u, s.setId, { trade_enabled: true });
+    const second = await enabledAt(u);
+    expect(time(second!)).toBeGreaterThan(time(first!));
+    expect(await waitingSince(u, s.items[0])).toBe(time(second!));
+  });
+});
+
+describe("G10 세트를 도감에서 빼기", () => {
+  const snapshot = async (u: TestUser) => ({
+    sets: (must(await service.from("collection_sets").select("set_id").eq("user_id", u.id)) as { set_id: number }[])
+      .map((r) => r.set_id)
+      .sort((a, b) => a - b),
+    entries: (must(await service.from("collection_entries").select("item_id").eq("user_id", u.id)) as { item_id: number }[])
+      .map((r) => r.item_id)
+      .sort((a, b) => a - b),
+    wants: (must(await service.from("wants").select("item_id").eq("user_id", u.id)) as { item_id: number }[])
+      .map((r) => r.item_id)
+      .sort((a, b) => a - b),
+  });
+  const remove = (u: TestUser, setId: number) =>
+    u.client.from("collection_sets").delete().eq("user_id", u.id).eq("set_id", setId).select("set_id");
+
+  test("예약이 있는 칸이 있으면 세트를 뺄 수 없다 (예약이 풀리면 빠진다)", async () => {
+    const { u, setId, items } = await tradingUser();
+    const reserve = async (qty: number) =>
+      must(await service.from("collection_entries").update({ reserved_qty: qty }).eq("user_id", u.id).eq("item_id", items[0]));
+    await reserve(1);
+    const before = await snapshot(u);
+
+    // 스위치를 꺼 둔 세트여도, 운영자가 비공개로 돌린 세트여도 예약이 있으면 뺄 수 없다
+    await switchSet(u, setId, { trade_enabled: false });
+    must(await service.from("sets").update({ is_published: false }).eq("id", setId));
+    const blocked = await remove(u, setId);
+
+    expect(blocked.error?.code).toBe(RESTRICT);
+    expect(before).toEqual({ sets: [setId], entries: [items[0]], wants: [items[1]] });
+    expect(await snapshot(u)).toEqual(before);
+    expect(
+      must(await service.from("collection_entries").select("reserved_qty").eq("user_id", u.id).eq("item_id", items[0])),
+    ).toEqual([{ reserved_qty: 1 }]);
+
+    // 대조군: 예약이 풀리면 같은 삭제가 된다
+    await reserve(0);
+    expect((await remove(u, setId)).data).toEqual([{ set_id: setId }]);
+    expect(await snapshot(u)).toEqual({ sets: [], entries: [], wants: [] });
+  });
+
+  test("세트를 빼면 그 세트의 칸과 구 목록도 지워지고, 다른 세트와 다른 사용자의 것은 남는다", async () => {
+    const [{ u, setId, items }, kept, hidden, { u: other, setId: otherSet }] = await Promise.all([
+      tradingUser(),
+      seedSet(2),
+      seedSet(2),
+      tradingUser(),
+    ]);
+    for (const s of [kept, hidden]) {
+      await addSet(u, s.setId, { trade_enabled: true });
+      await own(u, s.items[0], 3);
+      await pick(u, s.items[1]);
+    }
+    // 같은 세트를 가진 다른 사용자
+    await addSet(other, setId, { trade_enabled: true });
+    await own(other, items[0], 3);
+    await pick(other, items[1]);
+    const otherBefore = await snapshot(other);
+    expect(otherBefore.sets).toEqual([setId, otherSet].sort((a, b) => a - b));
+    // 운영자가 비공개로 돌려 사용자가 아이템을 읽을 수 없게 된 세트도 칸까지 지워져야 한다
+    must(await service.from("sets").update({ is_published: false }).eq("id", hidden.setId));
+
+    expect((await remove(u, setId)).data).toEqual([{ set_id: setId }]);
+    expect((await remove(u, hidden.setId)).data).toEqual([{ set_id: hidden.setId }]);
+
+    expect(await snapshot(u)).toEqual({ sets: [kept.setId], entries: [kept.items[0]], wants: [kept.items[1]] });
+    expect(await snapshot(other)).toEqual(otherBefore);
+    expect(await views(u)).toEqual({
+      haves: [{ item_id: kept.items[0], qty: 2 }],
+      wants: [{ item_id: kept.items[1], priority: 0 }],
+    });
   });
 });
