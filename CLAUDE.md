@@ -98,6 +98,7 @@ docs/
 ├ testing.md       테스트 전략
 └ matcher.md       매칭 알고리즘 설명
 TASKS.md           스프린트 작업 목록 (체크리스트)
+PRODUCT.md         디자인 작업용 제품 요약 (impeccable 스킬이 읽는다). 원본은 docs/specs/PRD.md
 
 ## 명령어
 - pnpm dev / pnpm build / pnpm lint / pnpm typecheck / pnpm test
