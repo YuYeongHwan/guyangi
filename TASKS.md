@@ -68,7 +68,7 @@
 
 - [x] 2.1 사용자 테이블: `profiles`(약관·처리방침 동의 시각과 버전 컬럼 포함), `user_stats`, `admins`, `is_admin()`, `app_settings` 와 초기값 — 테스트 R5, R6, R16
 - [x] 2.2 카탈로그: `series`, `sets`(`cell_ratio` 포함), `items`, 굿즈 이미지 Storage 버킷(공개 읽기, 운영자만 업로드) — 테스트 R4
-- [ ] 2.3 도감 테이블과 양·구 뷰 (설계는 architecture.md 3.3): `collection_sets`(교환 참여 스위치 `trade_enabled` 기본 꺼짐, `want_mode`), `collection_entries`(`keep_qty` null = 기본 하나 소장, `reserved_qty` 와 check 제약 3개, 컬럼별 insert·update 권한), `wants`(`created_at` = 고른 시각), 뷰 `tradable_haves`·`wanted_items`(`security_invoker`). **기록만 한 사용자는 양에도 구에도 잡히지 않는다** — 테스트 R1, R2, R3, R18(양·구 뷰), R19, P10, C1(DB 제약), G1~G8
+- [x] 2.3 도감 테이블과 양·구 뷰 (설계는 architecture.md 3.3): `collection_sets`(교환 참여 스위치 `trade_enabled` 기본 꺼짐, `want_mode`), `collection_entries`(`keep_qty` null = 기본 하나 소장, `reserved_qty` 와 check 제약 3개, 컬럼별 insert·update 권한), `wants`(`created_at` = 고른 시각), 뷰 `tradable_haves`·`wanted_items`(`security_invoker`). **기록만 한 사용자는 양에도 구에도 잡히지 않는다** — 테스트 R1, R2, R3, R18(양·구 뷰), R19, P10, C1(DB 제약), G1~G10. 스위치를 켠 시각 `trade_enabled_at`(트리거가 기록, 대기 시간의 하한), 세트를 빼면 칸·구 목록도 함께 지우고 예약이 있으면 거부
 - [ ] 2.4 RLS 전수 검사 — 테스트 R17
 - [ ] 2.5 `supabase gen types` 결과를 `packages/shared` 에 두고 웹에서 import. 타입이 마이그레이션과 어긋나면 CI 가 실패
 - [ ] 2.6 로그인: 카카오, 구글, 만 14세 이상 확인, 닉네임, 프로필 생성. 카카오에서 이메일 없는 사용자를 허용하는 설정을 실제로 확인하고 architecture.md 5장을 갱신. **금지 닉네임 차단**: 사칭할 수 있는 이름(운영자, 관리자, admin, 구양이 등)은 프로필 생성과 닉네임 변경에서 거부한다 — 테스트 C4
@@ -87,9 +87,9 @@
 - [ ] 3.1 디자인 토큰과 기본 컴포넌트: 역할 기준 색 토큰, 글꼴, 버튼, 입력란, 카드, 시트, 아래 탭 바 (DESIGN.md). `anthropic-skills:impeccable` 로 진행
 - [ ] 3.2 **DESIGN.md "Sprint 3 확인 항목" 처리**: 모바일 그리드 3열과 4열 비교, 색각 이상 시뮬레이션, LINE Seed Sans KR 라이선스와 용량, 대비 재계산
 - [ ] 3.3 앱 뼈대: 탭(도감 / 매칭 / 알림 / 내 정보, 매칭과 알림은 "준비 중" 빈 상태), PWA manifest, 홈 화면 추가
-- [ ] 3.4 세트 카탈로그 보기와 도감에 추가. 세트의 "교환 시작" 스위치(기본 꺼짐)와, 켤 때 구의 범위 고르기(빈칸 전부 구하기 / 고른 것만 구하기, 기본 선택은 빈칸 전부) — 테스트 C5
+- [ ] 3.4 세트 카탈로그 보기와 도감에 추가. 세트의 "교환 시작" 스위치(기본 꺼짐)와, 켤 때 구의 범위 고르기(빈칸 전부 구하기 / 고른 것만 구하기, 기본 선택은 빈칸 전부). **세트를 도감에서 뺄 때는 삭제 확인을 받는다**: 그 세트의 칸과 구 목록이 함께 지워진다는 것을 알리고, 진행 중인 교환이 있어 거부되면(23001) 그 이유를 보여 준다 (architecture.md 3.3) — 테스트 C5
 - [ ] 3.5 도감 그리드: 포켓 칸(미보유 실루엣 / 보유 컬러, 세트별 칸 비율), 칸 아래 이름표, 구/양 배지, 세트 진행 숫자, 컴플리트 소인 — 테스트 C2, C3
-- [ ] 3.6 칸 수정 시트: 보유 수량, 소장 개수(비워 두면 기본 = 하나 소장), 이 칸은 내놓지 않음. zod 검증 + 서버 액션 — 테스트 C1(zod), C5
+- [ ] 3.6 칸 수정 시트: 보유 수량, 소장 개수(비워 두면 기본 = 하나 소장), 이 칸은 내놓지 않음. zod 검증 + 서버 액션. **칸 수량을 원자적으로 올리고 내리는 DB 함수**를 만든다 (마이그레이션): `upsert()` 를 쓸 수 없고, 읽고-더하고-쓰기는 빠른 연타에서 숫자가 꼬인다. 칸이 없으면 만들고 있으면 더한다 — 테스트 C1(zod), C5, C10(연타)
 - [ ] 3.7 도감의 구/양 표시를 뷰 `tradable_haves`, `wanted_items` 에서 읽는다 (뷰는 2.3 에서 만들었다) — 테스트 C2
 - [ ] 3.8 구 고르기와 우선순위 (`wants`): "고른 것만 구하기" 세트에서 구할 칸 고르기, 두 방식 모두에서 우선순위 지정 — 테스트 C5
 - [ ] 3.9 세트 추가 요청과 처리 상태 보기 (`set_requests`) — 테스트 C5 (병행 가능)
@@ -128,7 +128,7 @@ Sprint 3 이 끝나면 PRD 전달 단계 1("도감 단독 공개")을 열 수 �
 DB:
 - [ ] 4.1 `matches`, `match_participants`, `match_legs`, `matcher_runs`, `notifications`, `is_match_participant()`, RLS — 테스트 R7, R14(알림), S15
 - [ ] 4.2 뷰 `matchable_users`(정지된 사용자 제외. 양·구 뷰에는 정지 여부를 넣지 않고 매처가 이 뷰와 join 한다), `wanted_items` 에 "이미 받기로 한 것 제외" 추가. **정지된 사용자에게는 매칭 제안이 가지 않는다**: 매처(4.5, 4.12)가 `matchable_users` 에 없는 사용자의 양·구를 버리고, `propose_match`(4.3)도 거부한다 — 테스트 R18(`matchable_users`), P11, M22, P13
-- [ ] 4.3 `propose_match` (수량 재확인에 세트 교환 스위치 포함) — 테스트 P1~P9, P12, P13(정지된 사용자 거부), N1(수락 요청)
+- [ ] 4.3 `propose_match` (수량 재확인에 세트 교환 스위치 포함. 예약을 올리기 전에 해당 `collection_entries` 행을 `item_id` 오름차순으로 잠근다: 세트 빼기 트리거(2.3)와 같은 행을 잠가야 서로 끼어들지 못한다. **P12 는 여기서 구현한다** (2.3 에서는 `propose_match` 가 없어 미뤘다)) — 테스트 P1~P9, P12, P13(정지된 사용자 거부), N1(수락 요청)
 - [ ] 4.4 `run_timers` 의 만료 처리 + pg_cron 5분 — 테스트 T1, T2(무응답), T3, T9, T10
 
 매처 (순수 함수, `ecc:tdd-workflow` + `ecc:python-testing`):
