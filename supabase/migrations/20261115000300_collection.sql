@@ -176,6 +176,8 @@ begin
   from public.collection_entries e
   join public.items i on i.id = e.item_id
   where e.user_id = old.user_id and i.set_id = old.set_id
+  -- 잠그는 순서를 고정한다. propose_match 도 item_id 오름차순으로 잠가야 교착이 나지 않는다
+  order by e.item_id
   for update of e;
 
   if exists (

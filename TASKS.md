@@ -128,7 +128,7 @@ Sprint 3 이 끝나면 PRD 전달 단계 1("도감 단독 공개")을 열 수 �
 DB:
 - [ ] 4.1 `matches`, `match_participants`, `match_legs`, `matcher_runs`, `notifications`, `is_match_participant()`, RLS — 테스트 R7, R14(알림), S15
 - [ ] 4.2 뷰 `matchable_users`(정지된 사용자 제외. 양·구 뷰에는 정지 여부를 넣지 않고 매처가 이 뷰와 join 한다), `wanted_items` 에 "이미 받기로 한 것 제외" 추가. **정지된 사용자에게는 매칭 제안이 가지 않는다**: 매처(4.5, 4.12)가 `matchable_users` 에 없는 사용자의 양·구를 버리고, `propose_match`(4.3)도 거부한다 — 테스트 R18(`matchable_users`), P11, M22, P13
-- [ ] 4.3 `propose_match` (수량 재확인에 세트 교환 스위치 포함. 예약을 올리기 전에 해당 `collection_entries` 행을 잠근다: 세트 빼기 트리거(2.3)와 같은 행을 잠가야 서로 끼어들지 못한다. **P12 는 여기서 구현한다** (2.3 에서는 `propose_match` 가 없어 미뤘다)) — 테스트 P1~P9, P12, P13(정지된 사용자 거부), N1(수락 요청)
+- [ ] 4.3 `propose_match` (수량 재확인에 세트 교환 스위치 포함. 예약을 올리기 전에 해당 `collection_entries` 행을 `item_id` 오름차순으로 잠근다: 세트 빼기 트리거(2.3)와 같은 행을 잠가야 서로 끼어들지 못한다. **P12 는 여기서 구현한다** (2.3 에서는 `propose_match` 가 없어 미뤘다)) — 테스트 P1~P9, P12, P13(정지된 사용자 거부), N1(수락 요청)
 - [ ] 4.4 `run_timers` 의 만료 처리 + pg_cron 5분 — 테스트 T1, T2(무응답), T3, T9, T10
 
 매처 (순수 함수, `ecc:tdd-workflow` + `ecc:python-testing`):

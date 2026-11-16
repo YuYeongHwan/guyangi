@@ -754,6 +754,27 @@ describe("G10 세트를 도감에서 빼기", () => {
     expect(await snapshot(u)).toEqual({ sets: [], entries: [], wants: [] });
   });
 
+  test("예약이 남아 있는 사용자의 계정은 지워지지 않는다 (예약이 풀리면 지워진다)", async () => {
+    const { u, setId, items } = await tradingUser();
+    const reserve = async (qty: number) =>
+      must(await service.from("collection_entries").update({ reserved_qty: qty }).eq("user_id", u.id).eq("item_id", items[0]));
+    await reserve(1);
+    const before = await snapshot(u);
+
+    const blocked = await service.auth.admin.deleteUser(u.id);
+
+    expect(blocked.error).not.toBeNull();
+    expect(before).toEqual({ sets: [setId], entries: [items[0]], wants: [items[1]] });
+    expect(await snapshot(u)).toEqual(before);
+    expect(must(await service.from("profiles").select("id").eq("id", u.id))).toEqual([{ id: u.id }]);
+
+    // 대조군: 예약이 풀리면 계정과 도감이 함께 지워진다
+    await reserve(0);
+    expect((await service.auth.admin.deleteUser(u.id)).error).toBeNull();
+    expect(must(await service.from("profiles").select("id").eq("id", u.id))).toEqual([]);
+    expect(await snapshot(u)).toEqual({ sets: [], entries: [], wants: [] });
+  });
+
   test("세트를 빼면 그 세트의 칸과 구 목록도 지워지고, 다른 세트와 다른 사용자의 것은 남는다", async () => {
     const [{ u, setId, items }, kept, hidden, { u: other, setId: otherSet }] = await Promise.all([
       tradingUser(),
