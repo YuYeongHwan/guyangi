@@ -439,8 +439,8 @@ describe("profiles: 닉네임만 본인이 고친다", () => {
     "닉네임 규칙에 맞으면 허용된다: %s",
     async (_label, base) => {
       const a = await createUser();
-      // 다른 테스트 실행과 겹치지 않게, 규칙 안에서 고유한 값을 만든다
-      const nickname = base === "구양" || base.length === 12 ? randomNicknameLike(base) : base + randomSuffix(1);
+      // DB 를 리셋하지 않고 여러 번 돌려도 겹치지 않게, 길이와 글자 종류는 base 와 같고 내용만 무작위로 만든다
+      const nickname = randomNicknameLike(base);
 
       const { error } = await a.client.from("profiles").update({ nickname }).eq("id", a.id);
 
@@ -459,9 +459,12 @@ describe("profiles: 닉네임만 본인이 고친다", () => {
   });
 });
 
-const HANGUL = "가나다라마바사아자차카타파하거너더러머버서어저처커터퍼허고노도로모보소오조초코토포호";
 const pick = (chars: string) => chars[Math.floor(Math.random() * chars.length)];
+/** 완성형 한글 11172자 중 하나. 한글 2자 닉네임도 1억 가지가 넘어 반복 실행에서 겹치지 않는다 */
+const randomHangul = () => String.fromCharCode(0xac00 + Math.floor(Math.random() * 11172));
 const randomSuffix = (n: number) => Array.from({ length: n }, () => pick("abcdefghijklmnopqrstuvwxyz0123456789")).join("");
 /** 길이와 글자 종류는 base 와 같고 내용만 무작위인 닉네임 */
 const randomNicknameLike = (base: string) =>
-  Array.from(base, (ch) => (/[가-힣]/.test(ch) ? pick(HANGUL) : pick("abcdefghijklmnopqrstuvwxyz"))).join("");
+  Array.from(base, (ch) =>
+    /[가-힣]/.test(ch) ? randomHangul() : /[A-Za-z0-9]/.test(ch) ? pick("abcdefghijklmnopqrstuvwxyzABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789") : ch,
+  ).join("");
